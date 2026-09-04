@@ -271,6 +271,225 @@ export interface TriggerRecord {
 	/** The game's bookkeeping byte (offset 2399); StarEdit writes 0. */
 	currentAction: number;
 }
+declare const ConditionType: {
+	readonly None: 0;
+	readonly CountdownTimer: 1;
+	readonly Command: 2;
+	readonly Bring: 3;
+	readonly Accumulate: 4;
+	readonly Kill: 5;
+	readonly CommandTheMost: 6;
+	readonly CommandTheMostAt: 7;
+	readonly MostKills: 8;
+	readonly HighestScore: 9;
+	readonly MostResources: 10;
+	readonly Switch: 11;
+	readonly ElapsedTime: 12;
+	readonly Briefing: 13;
+	readonly Opponents: 14;
+	readonly Deaths: 15;
+	readonly CommandTheLeast: 16;
+	readonly CommandTheLeastAt: 17;
+	readonly LeastKills: 18;
+	readonly LowestScore: 19;
+	readonly LeastResources: 20;
+	readonly Score: 21;
+	readonly Always: 22;
+	readonly Never: 23;
+};
+declare const ActionType: {
+	readonly None: 0;
+	readonly Victory: 1;
+	readonly Defeat: 2;
+	readonly PreserveTrigger: 3;
+	readonly Wait: 4;
+	readonly PauseGame: 5;
+	readonly UnpauseGame: 6;
+	readonly Transmission: 7;
+	readonly PlayWav: 8;
+	readonly DisplayText: 9;
+	readonly CenterView: 10;
+	readonly CreateUnitWithProperties: 11;
+	readonly SetMissionObjectives: 12;
+	readonly SetSwitch: 13;
+	readonly SetCountdownTimer: 14;
+	readonly RunAiScript: 15;
+	readonly RunAiScriptAt: 16;
+	readonly LeaderboardControl: 17;
+	readonly LeaderboardControlAt: 18;
+	readonly LeaderboardResources: 19;
+	readonly LeaderboardKills: 20;
+	readonly LeaderboardPoints: 21;
+	readonly KillUnit: 22;
+	readonly KillUnitAt: 23;
+	readonly RemoveUnit: 24;
+	readonly RemoveUnitAt: 25;
+	readonly SetResources: 26;
+	readonly SetScore: 27;
+	readonly MinimapPing: 28;
+	readonly TalkingPortrait: 29;
+	readonly MuteUnitSpeech: 30;
+	readonly UnmuteUnitSpeech: 31;
+	readonly LeaderboardComputerPlayers: 32;
+	readonly LeaderboardGoalControl: 33;
+	readonly LeaderboardGoalControlAt: 34;
+	readonly LeaderboardGoalResources: 35;
+	readonly LeaderboardGoalKills: 36;
+	readonly LeaderboardGoalPoints: 37;
+	readonly MoveLocation: 38;
+	readonly MoveUnit: 39;
+	readonly LeaderboardGreed: 40;
+	readonly SetNextScenario: 41;
+	readonly SetDoodadState: 42;
+	readonly SetInvincibility: 43;
+	readonly CreateUnit: 44;
+	readonly SetDeaths: 45;
+	readonly Order: 46;
+	readonly Comment: 47;
+	readonly GiveUnits: 48;
+	readonly ModifyHitPoints: 49;
+	readonly ModifyEnergy: 50;
+	readonly ModifyShields: 51;
+	readonly ModifyResourceAmount: 52;
+	readonly ModifyHangarCount: 53;
+	readonly PauseTimer: 54;
+	readonly UnpauseTimer: 55;
+	readonly Draw: 56;
+	readonly SetAllianceStatus: 57;
+	readonly DisableDebugMode: 58;
+	readonly EnableDebugMode: 59;
+};
+declare const BriefingActionType: {
+	readonly None: 0;
+	readonly Wait: 1;
+	readonly PlayWav: 2;
+	readonly TextMessage: 3;
+	readonly MissionObjectives: 4;
+	readonly ShowPortrait: 5;
+	readonly HidePortrait: 6;
+	readonly DisplaySpeakingPortrait: 7;
+	readonly Transmission: 8;
+	readonly SkipTutorialEnabled: 9;
+};
+declare const PlayerGroup: {
+	readonly Player1: 0;
+	readonly Player2: 1;
+	readonly Player3: 2;
+	readonly Player4: 3;
+	readonly Player5: 4;
+	readonly Player6: 5;
+	readonly Player7: 6;
+	readonly Player8: 7;
+	readonly Player9: 8;
+	readonly Player10: 9;
+	readonly Player11: 10;
+	readonly Player12: 11;
+	readonly None: 12;
+	readonly CurrentPlayer: 13;
+	readonly Foes: 14;
+	readonly Allies: 15;
+	readonly NeutralPlayers: 16;
+	readonly AllPlayers: 17;
+	readonly Force1: 18;
+	readonly Force2: 19;
+	readonly Force3: 20;
+	readonly Force4: 21;
+	readonly Unused1: 22;
+	readonly Unused2: 23;
+	readonly Unused3: 24;
+	readonly Unused4: 25;
+	readonly NonAlliedVictoryPlayers: 26;
+};
+declare const Comparison: {
+	readonly AtLeast: 0;
+	readonly AtMost: 1;
+	readonly Exactly: 10;
+};
+declare const SwitchState: {
+	readonly Set: 2;
+	readonly Cleared: 3;
+};
+declare const SwitchAction: {
+	readonly Set: 4;
+	readonly Clear: 5;
+	readonly Toggle: 6;
+	readonly Randomize: 11;
+};
+declare const SetModifier: {
+	readonly SetTo: 7;
+	readonly Add: 8;
+	readonly Subtract: 9;
+};
+declare const UnitState: {
+	readonly Enable: 4;
+	readonly Disable: 5;
+	readonly Toggle: 6;
+};
+declare const Order: {
+	readonly Move: 0;
+	readonly Patrol: 1;
+	readonly Attack: 2;
+};
+declare const AllianceStatus: {
+	readonly Enemy: 0;
+	readonly Ally: 1;
+	readonly AlliedVictory: 2;
+};
+declare const ResourceType: {
+	readonly Ore: 0;
+	readonly Gas: 1;
+	readonly OreAndGas: 2;
+};
+declare const ScoreType: {
+	readonly Total: 0;
+	readonly Units: 1;
+	readonly Buildings: 2;
+	readonly UnitsAndBuildings: 3;
+	readonly Kills: 4;
+	readonly Razings: 5;
+	readonly KillsAndRazings: 6;
+	readonly Custom: 7;
+};
+declare const UnitClass: {
+	readonly Any: 228;
+	readonly Men: 229;
+	readonly Buildings: 230;
+	readonly Factories: 231;
+};
+declare const ConditionFlag: {
+	/** Game bookkeeping. */
+	readonly Unknown: 1;
+	readonly Disabled: 2;
+	readonly AlwaysDisplay: 4;
+	readonly UnitPropertiesUsed: 8;
+	readonly UnitTypeUsed: 16;
+	readonly UnitIdUsed: 32;
+};
+declare const ActionFlag: {
+	/** Ignore a Wait / Transmission once (game bookkeeping). */
+	readonly IgnoreWaitOnce: 1;
+	readonly Disabled: 2;
+	readonly AlwaysDisplay: 4;
+	readonly UnitPropertiesUsed: 8;
+	readonly UnitTypeUsed: 16;
+	readonly UnitIdUsed: 32;
+};
+declare const TriggerFlag: {
+	/** Game bookkeeping: every condition was met this cycle. */
+	readonly ConditionsMet: 1;
+	/** Ignore Defeat / Draw for this trigger. */
+	readonly IgnoreGameEnd: 2;
+	/** Same as a Preserve Trigger action. */
+	readonly Preserve: 4;
+	/** The trigger never runs. */
+	readonly Disabled: 8;
+	/** Skip Wait / text / view actions for the rest of this loop (game bookkeeping). */
+	readonly IgnoreDisplay: 16;
+	/** Game bookkeeping. */
+	readonly Paused: 32;
+	/** Game bookkeeping. */
+	readonly WaitSkipDisabled: 64;
+};
 /**
  * A parsed scenario.
  *
@@ -1659,17 +1878,32 @@ export interface PluginInfo {
 export interface PluginApi {
 	readonly apiVersion: number;
 	readonly plugin: PluginInfo;
+	/**
+	 * The open map: what it says, and the three ways of writing to it — `edit` (terrain and
+	 * objects, one undo entry), `update` (the tables every dialog's OK writes) and
+	 * `sections` (raw bytes). Opening, saving, exporting and closing are here too.
+	 */
 	readonly document: DocumentApi;
 	/** The settings dialogs' tables, read-only; `document.update` writes them. */
 	readonly settings: SettingsApi;
 	readonly triggers: TriggersApi;
+	/**
+	 * Reading the terrain: the tileset's paintable types, the ISOM lattice, flood regions,
+	 * blend candidates and the symmetry mode. Painting goes through `document.edit`.
+	 */
 	readonly terrain: TerrainApi;
+	/** The loaded tileset graphics: whether they are there, and the decoded files behind them. */
 	readonly tileset: TilesetApi;
+	/** What is selected on each object layer, the marked area, the active layer and the locked ones. */
 	readonly selection: SelectionApi;
 	/** Cut / Copy / Paste: the clip, its parts, and pasting — what the clipboard layer does. */
 	readonly clipboard: ClipboardApi;
 	/** The file formats behind File ▸ Import / Export: `.trg` and the strings text. */
 	readonly exchange: ExchangeApi;
+	/**
+	 * The palettes' current picks — the terrain brush, the unit, sprite and doodad, the fog
+	 * mode — and the placement options a plugin that places things should honour.
+	 */
 	readonly palette: PaletteApi;
 	readonly names: NamesApi;
 	/** StarCraft's `<XX>` text control codes: what they mean, and what a string looks like drawn. */
@@ -1680,12 +1914,24 @@ export interface PluginApi {
 	readonly consts: ConstsApi;
 	readonly graphics: GraphicsApi;
 	readonly view: ViewApi;
+	/**
+	 * Everything a plugin puts on the screen: the status line, toasts, dialogs, floating
+	 * panels, `confirm` / `alert` / `prompt` / `progress`, a map tool that owns the pointer,
+	 * a passive overlay drawn over the map, and picking an area or a tile.
+	 */
 	readonly ui: UiApi;
+	/** Items in the editor's menu bar. A path whose last segment names no submenu makes one. */
 	readonly menu: MenuApi;
+	/** Items in the right-click menus of the map and the terrain palette. */
 	readonly contextMenu: ContextMenuApi;
+	/** Key combinations, tried before the editor's own and never while a text field has focus. */
 	readonly hotkeys: HotkeyApi;
 	readonly commands: CommandsApi;
 	readonly events: EventsApi;
+	/**
+	 * A small key-value store of the plugin's own, kept in the browser's local storage under
+	 * the plugin's id and listed with everything else in Preferences ▸ Browser storage.
+	 */
 	readonly storage: StorageApi;
 	/** `console.log` with the plugin's name in front. */
 	log(...args: unknown[]): void;
@@ -1804,6 +2050,14 @@ export interface DocumentApi {
 	 *
 	 * `build` is synchronous — see `Sync`. Await what you need (graphics, a pick, a
 	 * fetch) before the call, then write in one go.
+	 *
+	 * @example
+	 * // One undo entry called "Fill", however many operations it takes.
+	 * const result = api.document.edit("Fill", (tx) => {
+	 *   tx.stampTerrain({ x0: 0, y0: 0, x1: 8, y1: 8 }, terrainId);
+	 *   tx.placeUnit(api.consts.unit.startLocation, 0, 4 * api.consts.tile, 4 * api.consts.tile);
+	 * });
+	 * api.ui.status(`${result.tiles} tiles, ${result.units} units`);
 	 */
 	edit<R>(label: string, build: (tx: EditTransaction) => Sync<R>): EditResult;
 	/**
@@ -1813,6 +2067,11 @@ export interface DocumentApi {
 	 * Operations apply as they are called; the commit marks the map modified and bumps
 	 * what the chrome reads. There is no undo entry: keep your own if you need one.
 	 * `build` is synchronous, as `edit`'s is.
+	 *
+	 * @example
+	 * api.document.update("Rename", (tx) => {
+	 *   tx.properties({ name: "Lost Temple", description: "Four players." });
+	 * });
 	 */
 	update<R>(label: string, build: (tx: UpdateTransaction) => Sync<R>): UpdateResult;
 	undo(): string | null;
@@ -2587,8 +2846,9 @@ export interface DataApi {
 }
 /**
  * The constants a plugin needs to *write* a record rather than read one: the bit masks in
- * a UNIT / THG2 / MRGN record, the few unit ids the game itself treats specially, and the
- * one conversion — 32 pixels to a tile — every object position goes through.
+ * a UNIT / THG2 / MRGN record, the condition, action and argument numbers of a TRIG /
+ * MBRF one, the few unit ids the game itself treats specially, and the one conversion —
+ * 32 pixels to a tile — every object position goes through.
  *
  * They are the editor's own (`sections/objects.ts`, `editor/units.ts`) and they arrive
  * here at run time rather than in the typings on purpose: `@scm-js/plugin-api` is erased
@@ -2600,9 +2860,14 @@ export interface DataApi {
 export interface ConstsApi {
 	/** Map pixels to a tile. UNIT and THG2 store pixels; MTXM, MRGN and the brushes count tiles. */
 	readonly tile: 32;
+	/** UNIT: the special unit ids, the default resource amounts, and the record's four bit masks. */
 	readonly unit: UnitConsts;
+	/** THG2: the sprite record's flag word. */
 	readonly sprite: SpriteConsts;
+	/** MRGN: the Anywhere slot, and the elevation bits. */
 	readonly location: LocationConsts;
+	/** TRIG / MBRF: the condition and action types, and the enumerated arguments. */
+	readonly triggers: TriggerConsts;
 	/** Whether a unit type is a mineral field or a vespene geyser. */
 	isResource(unitId: number): boolean;
 }
@@ -2679,6 +2944,56 @@ export interface LocationConsts {
 		readonly MediumAir: 16;
 		readonly HighAir: 32;
 	};
+}
+/**
+ * The numbers a TRIG / MBRF record is written in: the condition and action types, and the
+ * enumerated arguments the game stores as bare bytes.
+ *
+ * A trigger record is sixteen conditions and sixty-four actions of plain numbers — the
+ * codec knows no types — so writing one field by field means knowing that a Countdown
+ * Timer condition is type 1 and `AtLeast` is 0. `triggers.defs` says which *field* an
+ * argument lives in; this says what to put in it.
+ *
+ * The keys of the argument groups are `ArgDef.kind`, so a generic argument editor can
+ * look one up by the kind the def gave it (`api.consts.triggers[arg.kind]`).
+ *
+ * Generating a whole run of triggers is usually better done through
+ * `tx.triggers.fromText`, which resolves names against the open map; these are for
+ * editing a field of an existing record, and for reading one back.
+ */
+export interface TriggerConsts {
+	/** Condition `type`. */
+	readonly condition: typeof ConditionType;
+	/** Action `type` in TRIG. */
+	readonly action: typeof ActionType;
+	/** Action `type` in MBRF, where the same byte means something else. */
+	readonly briefingAction: typeof BriefingActionType;
+	/** The 27 player-group values, which are also the indices of a trigger's `players`. */
+	readonly player: typeof PlayerGroup;
+	readonly comparison: typeof Comparison;
+	readonly switchState: typeof SwitchState;
+	readonly switchAction: typeof SwitchAction;
+	/** Set Resources / Set Score / Modify …: `SetTo`, `Add`, `Subtract`. */
+	readonly modifier: typeof SetModifier;
+	/** Set Doodad State / Set Invincibility: `Enable`, `Disable`, `Toggle`. */
+	readonly unitState: typeof UnitState;
+	readonly order: typeof Order;
+	readonly alliance: typeof AllianceStatus;
+	readonly resource: typeof ResourceType;
+	readonly score: typeof ScoreType;
+	/** The unit ids past units.dat that a condition or action accepts: *Any unit*, *Men*, *Buildings*, *Factories*. */
+	readonly unitClass: typeof UnitClass;
+	/** A condition's `flags`. `UnitTypeUsed` is the hint bit the text format cannot carry. */
+	readonly conditionFlags: typeof ConditionFlag;
+	/** An action's `flags`. */
+	readonly actionFlags: typeof ActionFlag;
+	/** A trigger's `flags`; `Preserve` is what `triggers.isPreserved` reads. */
+	readonly triggerFlags: typeof TriggerFlag;
+	/**
+	 * The address of the game's death table, which is the base an EUD player value is
+	 * counted from: `epd = (address - deathsTable) / 4 + 0x2000`.
+	 */
+	readonly deathsTable: number;
 }
 export interface ActiveBrush {
 	mode: TerrainMode;
@@ -3422,6 +3737,20 @@ export interface MenuItemSpec {
 	command?: string;
 }
 export interface MenuApi {
+	/**
+	 * Items in the editor's menu bar.
+	 *
+	 * @example
+	 * api.menu.add("Tools", {
+	 *   label: "Count units\u2026",
+	 *   icon: "plugin",
+	 *   run: () => api.ui.alert(`Player 1 has ${api.query.unitsOf(0).length} units.`),
+	 * });
+	 *
+	 * @example
+	 * // A path whose last segment names no submenu makes one, at the end of that menu.
+	 * api.menu.add("Tools/My plugin", { label: "Settings\u2026", command: "settings" });
+	 */
 	add(path: MenuPath, item: MenuItemSpec): Disposable;
 }
 export type ContextSurface = "viewport" | "terrainPalette";
@@ -3455,7 +3784,10 @@ export interface ContextMenuApi {
 	add(surface: ContextSurface, item: ContextItemSpec): Disposable;
 }
 export interface HotkeyApi {
-	/** `"Ctrl+Shift+I"`, `"Alt+F9"`, `"F8"` — modifiers in any order, then a key name. */
+	/** `"Ctrl+Shift+I"`, `"Alt+F9"`, `"F8"` — modifiers in any order, then a key name.    *
+	 * @example
+	 * api.hotkeys.add("Ctrl+Shift+W", () => handle.setVisible(!handle.visible()));
+	 */
 	add(combo: string, run: (() => void) | {
 		command: string;
 	}): Disposable;
@@ -3504,10 +3836,26 @@ export interface DocumentEvent {
  * reason `"replace"`, which every other listener sees in turn.
  */
 export interface EventsApi {
+	/**
+	 * @example
+	 * // Notifications, in activation order; a listener never intercepts what it hears.
+	 * api.events.on("document", (e) => {
+	 *   if (e.reason === "open") check(e.fileName);
+	 * });
+	 * api.events.on("terrain", () => redraw());
+	 */
 	on(event: "document", listener: (event: DocumentEvent) => void): Disposable;
 	on(event: PluginEvent, listener: () => void): Disposable;
 }
 export interface StorageApi {
+	/**
+	 * A small key-value store of the plugin's own, under its id in the browser's local
+	 * storage and listed in Preferences \u25b8 Browser storage.
+	 *
+	 * @example
+	 * const opts = api.storage.get("options", { showGrid: true });
+	 * api.storage.set("options", { ...opts, showGrid: false });
+	 */
 	get<T>(key: string, fallback: T): T;
 	set(key: string, value: unknown): void;
 	remove(key: string): void;
