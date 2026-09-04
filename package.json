@@ -1,0 +1,19 @@
+{
+  "name": "@scm-js/plugin-api",
+  "version": "0.1.0",
+  "description": "Type declarations for the scmJS plugin API",
+  "license": "MIT",
+  "types": "index.d.ts",
+  "files": [
+    "index.d.ts"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/scm-js/plugin-api.git"
+  },
+  "homepage": "https://github.com/scm-js/scm-js/blob/main/docs/plugins.md",
+  "scmjs": {
+    "pluginApiVersion": 1,
+    "editorVersion": "0.1.0"
+  }
+}
