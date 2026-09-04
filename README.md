@@ -1,18 +1,10 @@
-# scm-js plugin API
+# @scm-js/plugin-api
 
 Type declarations for the plugin API of [scmJS](https://github.com/scm-js/scm-js), the
 browser-based StarCraft: Brood War map editor.
 
-**Nothing here is written by hand.** `index.d.ts` is generated from `src/plugins/api.ts`
-in the editor by `npm run build:plugin-types` and pushed here — one file, so a plugin
-repository carries a dependency instead of a copy. `main` is the tip of the contract; a
-`v*` tag is the contract as of that editor release, which is why the package's version
-is the editor's.
-
-## Using it
-
 ```sh
-npm i -D github:scm-js/plugin-api
+npm i -D @scm-js/plugin-api
 ```
 
 ```ts
@@ -23,20 +15,37 @@ export function activate(api: PluginApi) {
 }
 ```
 
-Types only: a plugin imports them with `import type`, which is erased before the editor's
-loader ever sees the specifier — which is what keeps this a normal npm dependency without
-breaking the rule that a plugin's *runtime* code cannot import packages by name.
+Types only. A plugin imports them with `import type`, which is erased before the editor's
+loader ever sees the specifier — which is what lets this be a normal npm dependency
+without breaking the rule that a plugin's *runtime* code cannot import packages by name.
 
-Pin it if you want to (`github:scm-js/plugin-api#v0.1.0`); most plugins do not need to.
-`PLUGIN_API_VERSION` is 1 and additions do not move it, so the tip is compatible with
-everything written against it so far. The shared plugin CI in
-[`scm-js/.github`](https://github.com/scm-js/.github) type-checks each plugin against the
-tip on a schedule, so drift turns a check red rather than going unnoticed.
+## Versions
+
+The major **is** `PLUGIN_API_VERSION`, so `"^1"` is the range to write and it means what
+it says: the minor moves whenever the declarations change, and a change that would break a
+plugin moves the major and `PLUGIN_API_VERSION` together. The editor's own version is
+deliberately not in here — editor 0.1.0 to 0.2.0 is an ordinary release, and semver would
+read it as a break.
+
+`PLUGIN_API_VERSION` is 1 and has never moved. Your manifest's `"api": 1` is the version
+your plugin *needs*; an editor providing an older one refuses to load it.
+
+## This repository
+
+**Nothing here is written by hand** except this README and the LICENSE. `index.d.ts` and
+`package.json` are generated from `src/plugins/api.ts` in the editor by
+`npm run build:plugin-types` and published from there, so the contract has one source and
+one copy of its declarations. `main` is the tip; each `v*` tag is a published version.
+
+It exists beside the registry as the audit trail behind the tarball, and as the way in for
+anyone whose registry the package is not on — `npm i -D github:scm-js/plugin-api#v1.0.0`
+works and installs exactly the same two files.
 
 ## What the API covers
 
 [`docs/plugins.md`](https://github.com/scm-js/scm-js/blob/main/docs/plugins.md) in the
 editor is the author's guide and the tour of what a plugin can do; this repository is only
-the typings for it.
+the typings for it. [`plugin-hello-world`](https://github.com/scm-js/plugin-hello-world) is
+the smallest working example.
 
 MIT, like the editor.
