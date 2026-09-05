@@ -902,6 +902,8 @@ export interface ImagesDat {
 	lo: Uint32Array[];
 }
 export interface WeaponsDat {
+	/** The weapon's name: a 1-based `stat_txt.tbl` index, 0 for none. */
+	label: Uint16Array;
 	damage: Uint16Array;
 	/** Added per upgrade level. */
 	bonus: Uint16Array;
@@ -920,6 +922,8 @@ export interface UpgradesDat {
 	maxRepeats: Uint8Array;
 	/** 1 for upgrades only Brood War has. */
 	broodWar: Uint8Array;
+	/** The upgrade's name: a 1-based `stat_txt.tbl` index, 0 for none. */
+	label: Uint16Array;
 }
 /** The columns Technology Settings shows as defaults. */
 export interface TechdataDat {
@@ -930,6 +934,8 @@ export interface TechdataDat {
 	energyCost: Uint16Array;
 	/** 1 for abilities only Brood War has. */
 	broodWar: Uint8Array;
+	/** The technology's name: a 1-based `stat_txt.tbl` index, 0 for none. */
+	label: Uint16Array;
 }
 export interface SpriteGroup {
 	label: string;
@@ -1910,6 +1916,8 @@ export interface PluginApi {
 	readonly text: TextApi;
 	readonly query: QueryApi;
 	readonly data: DataApi;
+	/** Which set of game files the editor draws from — the game's own or a mod's — and installing, switching and removing sets. */
+	readonly gameData: GameDataApi;
 	/** Bit masks, special unit ids and the pixels-per-tile every record is written in. */
 	readonly consts: ConstsApi;
 	readonly graphics: GraphicsApi;
@@ -2843,6 +2851,89 @@ export interface DataApi {
 	race(unitId: number): Race;
 	/** The GRP path an image id draws from, relative to `unit\`. */
 	imagePath(imageId: number): string | null;
+}
+/**
+ * A data set: one set of game files the editor draws from. The default is the game's
+ * own; any other is a mod's, installed under an id of its own, the same formats and
+ * table sizes with some of the files replaced.
+ */
+export interface GameDataProfile {
+	/** Lower-case letters, digits and hyphens, up to 40 characters. */
+	id: string;
+	/** What the dialog and the status line call it. */
+	name: string;
+}
+/** Where the session's game data comes from. */
+export interface GameDataSource {
+	/** `bundled` (this build's own files, or the desktop app's extraction), `stored` (a copy kept in the browser), or `none`. */
+	kind: "bundled" | "stored" | "none";
+	/** One line, as Help ▸ Game Data… shows it. */
+	label: string;
+	/** The data set the files belong to. */
+	profile: GameDataProfile;
+	/** Set when the desktop app extracted the files from a StarCraft installation. */
+	desktop: boolean;
+}
+/** Bytes for an install: a `File` / `Blob`, or already an array. */
+export type GameDataBytes = Blob | Uint8Array;
+/** What a data set is installed from. */
+export interface GameDataFiles {
+	/**
+	 * The archives, `StarDat.mpq` and `BrooDat.mpq` among them — a mod replaces files, it
+	 * does not bring the rest. The game's own are read first, then the others in the order
+	 * given, later ones winning as in the game.
+	 */
+	archives: readonly {
+		name: string;
+		data: GameDataBytes;
+	}[];
+	/** Loose files by member path (`arr/units.dat`, `unit/terran/marine.grp`), read before any archive. */
+	files?: readonly {
+		path: string;
+		data: GameDataBytes;
+	}[];
+}
+/**
+ * The game data as a whole: which set of files the editor draws from, and installing,
+ * switching and removing sets — the plugin side of Help ▸ Game Data…. What is *in* the
+ * files is `data` (the tables), `tileset` (the graphics), `graphics` (the pictures) and
+ * `names` (the labels, which follow the loaded set: a unit, weapon, upgrade or
+ * technology a mod renamed shows its new name, and the rest keep StarEdit's).
+ *
+ * A data set is a name over files in the game's own formats; a mod that extends the
+ * tables past the game's sizes is not covered. Installing needs the game's two archives
+ * every time, since a mod's files are laid over them the way its loader lays them.
+ *
+ * @example
+ * // A mod plugin: install its files once, then draw with them.
+ * const sets = await api.gameData.profiles();
+ * if (!sets.some((p) => p.id === "my-mod")) {
+ *   const files = await api.ui.pickFiles({ multiple: true });
+ *   if (files) await api.gameData.install({ id: "my-mod", name: "My Mod" }, { archives: files.map((f) => ({ name: f.name, data: f })) });
+ * }
+ * await api.gameData.select("my-mod");
+ */
+export interface GameDataApi {
+	/** The session's source, or null while it is still being resolved at startup. */
+	source(): GameDataSource | null;
+	/** The data set in use — the game's own until another is selected. */
+	profile(): GameDataProfile;
+	/** Every data set with a copy here, the game's own first. */
+	profiles(): Promise<GameDataProfile[]>;
+	/**
+	 * Extract a data set from its files, store it under `profile.id` and switch to it. The
+	 * archives must include the game's own two; the promise rejects with the reason when
+	 * they do not or the extraction fails. `progress` is 0–1 with a label, as the dialog's bar.
+	 */
+	install(profile: GameDataProfile, files: GameDataFiles, progress?: (fraction: number, label: string) => void): Promise<GameDataSource>;
+	/**
+	 * Switch to a data set. Everything decoded from the previous one is dropped and the
+	 * viewport redraws from the new files; a set with no copy here falls back to the game's
+	 * own. Resolves with the source in use afterwards.
+	 */
+	select(id: string): Promise<GameDataSource>;
+	/** Remove a data set's copy (never the game's bundled files). True when there was one. */
+	remove(id: string): Promise<boolean>;
 }
 /**
  * The constants a plugin needs to *write* a record rather than read one: the bit masks in
@@ -3814,7 +3905,9 @@ export type PluginEvent =
 /** The document's file changed: its name or handle after a Save, the save options, the archive extras, the recent list. */
  | "file"
 /** A plugin registered or removed a command — how a plugin learns that one it calls by id has arrived. */
- | "commands";
+ | "commands"
+/** The game data source changed: installed, switched to another data set, or a copy removed. `gameData.source()` says what it is now. */
+ | "gameData";
 /** Why the document changed. */
 export type DocumentChangeReason = 
 /** File ▸ Open, drag-and-drop, `document.open`: a file the user chose. */
