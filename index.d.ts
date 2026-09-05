@@ -800,9 +800,21 @@ export interface IsomCheck {
 	/** Rects whose tiles are not what their ISOM resolves to (doodad tiles are excused). */
 	mismatched: number;
 }
-/** `checkIsom` with the verdict the palette and Check Map draw from it. */
+/**
+ * `checkIsom` with what a rebuild would do about it — the verdict the palette, Check Map
+ * and the Repair plugin draw from.
+ *
+ * The two numbers measure opposite directions and are not inverses: `mismatched` is the
+ * lattice failing to reproduce the tiles, while a rebuild votes a lattice out of the
+ * tiles. A rebuild converges in one pass and leaves `inherent` behind for good, because
+ * hand-placed tiles, blends and another editor's ground are not terrain any lattice
+ * describes. Reporting `mismatched` alone therefore recommended a repair that could not
+ * move the number, on every map with terrain like that.
+ */
 export interface IsomReport extends IsomCheck {
-	/** More than `STALE_ISOM_SHARE` of the rects disagree with their tiles. */
+	/** Of `mismatched`, the rects a rebuild would leave: terrain no lattice describes. */
+	inherent: number;
+	/** A rebuild would bring more than `STALE_ISOM_SHARE` of the rects back in step. */
 	stale: boolean;
 }
 export interface LocationStringChange {
@@ -1663,6 +1675,13 @@ export interface HistoryEdit {
 	 * removes the section again rather than leaving an all-zero one behind.
 	 */
 	createdIsom?: Uint16Array;
+	/**
+	 * Set when the edit rebuilt an existing lattice from the tiles, which is the one edit
+	 * to `isom` the ISOM health is re-measured after: a brush stroke keeps the two in step
+	 * by construction and is deliberately not measured (`useIsomStatus`), and measuring
+	 * costs a second rebuild.
+	 */
+	rebuiltIsom?: boolean;
 	/** Unit placements, moves and deletions (see editor/units.ts). */
 	units?: UnitChange[];
 	/**
@@ -3114,10 +3133,19 @@ export interface TerrainApi {
 	/** Whether the open map carries an ISOM section the isometric brush can work on. */
 	hasIsom(): boolean;
 	/**
-	 * How well the ISOM describes the tiles — `rects` measured, `mismatched` among them,
-	 * and `stale` when the share is past what the palette warns at — or null when the map
-	 * has no ISOM (`hasIsom`) or no map is open. Waits for the tileset graphics to load
-	 * and rejects when they are missing.
+	 * How well the ISOM describes the tiles, and what rebuilding it would do about that:
+	 * `rects` measured, `mismatched` among them, `inherent` of those a rebuild would leave
+	 * behind (terrain no lattice describes — hand-placed tiles, blends, another editor's
+	 * ground), and `stale` when a rebuild would bring more than the palette's threshold
+	 * back in step. Null when the map has no ISOM (`hasIsom`) or no map is open. Waits for
+	 * the tileset graphics to load and rejects when they are missing.
+	 *
+	 * Offer `tx.rebuildIsom` on `stale`, not on `mismatched`: the two measure opposite
+	 * directions, a rebuild converges in one pass, and `inherent` never goes away.
+	 *
+	 * @example
+	 * const r = await api.terrain.checkIsom();
+	 * if (r?.stale) await api.document.edit("Rebuild ISOM", (tx) => { tx.rebuildIsom(); });
 	 */
 	checkIsom(): Promise<IsomReport | null>;
 	tileInfo(id: number): TileInfo | null;
