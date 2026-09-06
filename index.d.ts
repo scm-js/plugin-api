@@ -1639,6 +1639,13 @@ export interface DoodadPlacementOptions {
 	/** Keep the left column on an even tile, as StarEdit always does. */
 	snapToGrid: boolean;
 }
+export interface DoodadVerdict {
+	ok: boolean;
+	/** The footprint leaves the map (never allowed). */
+	outOfBounds: boolean;
+	/** Cell indices (row-major) whose ground fails the check, for the ghost to mark red. */
+	bad: number[];
+}
 export type StartLayout = "ring" | "corners";
 export interface StartPlacementResult {
 	changes: UnitChange[];
@@ -2733,6 +2740,14 @@ export interface QueryApi {
 	startLocations(): StartLocation[];
 	/** Whether a unit type may be placed centred there, and what stops it; null with no map. */
 	placement(unitId: number, x: number, y: number): PlacementVerdict | null;
+	/**
+	 * StarEdit's ground check for a doodad with its top-left tile at (tx, ty): `ok`, or the
+	 * cells (row-major) whose ground is not what `DoodadInfo.required` asks for. It reads the
+	 * map as it is right now — inside a `document.edit` that is the map with the transaction's
+	 * earlier changes in — so a plugin can paint a cliff and then look for where a ramp fits.
+	 * Null with no map or without the tileset graphics.
+	 */
+	doodadPlacement(doodadId: number, tx: number, ty: number): DoodadVerdict | null;
 	/** The MASK bits at a tile: bit n set = player n + 1 starts fogged there (every bit when the map has no MASK). */
 	fogAt(tx: number, ty: number): number;
 	/** The string table as it stands (index 0 is nothing); empty with no map. */
@@ -3385,6 +3400,19 @@ export interface DoodadInfo {
 	/** Footprint in tiles. */
 	width: number;
 	height: number;
+	/**
+	 * A ramp: a doodad with the VF4 ramp bit, filed under a cliff category with no name of
+	 * its own. Ramps fit only on the cliff shape they were drawn for (see `required`), and
+	 * a tileset has them for a few terrain pairs only.
+	 */
+	ramp: boolean;
+	/**
+	 * Per cell (row-major, `width` × `height`): the CV5 tile group that must already lie
+	 * under it for StarEdit to allow the placement, or 0 for "anything". A flat terrain's
+	 * pair is its `TerrainType.group` (even) and `group + 1`; the other numbers are cliff
+	 * and shore pieces. `query.doodadPlacement` applies the rule.
+	 */
+	required: number[];
 }
 export interface PaletteApi {
 	active(): PaletteChoice;
