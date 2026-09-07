@@ -2409,6 +2409,16 @@ export interface EditTransaction {
 	 * Returns records converted.
 	 */
 	convertDoodads(indices: number[]): number;
+	/**
+	 * Stamp a `Clip` with its top-left tile at (tx, ty) inside this transaction — the
+	 * clipboard's paste without the clipboard: the clip can come from anywhere (`clipboard.copy`,
+	 * a library, a file), the user's own clip is left alone, and several stamps, or a stamp
+	 * and the strokes around it, make one undo step. Every part the clip carries is laid down
+	 * unless `parts` says otherwise; `mode` is `"merge"` unless given. Terrain and doodads
+	 * from another tileset are refused, as a paste refuses them, and anything off the map is
+	 * skipped, both said in the result's `notes`.
+	 */
+	paste(clip: Clip, tx: number, ty: number, options?: PasteOptionsSpec): PasteResult;
 	/** A location in the lowest free slot (pixel bounds); returns the slot, or -1 when the table is full. */
 	addLocation(bounds: Bounds, name?: string, elevationFlags?: number): number;
 	editLocation(index: number, patch: LocationPatch): boolean;
@@ -2976,6 +2986,12 @@ export interface PluginImage {
 	width: number;
 	height: number;
 }
+export interface RenderClipOptions {
+	/** Pixels per tile; 32 (the game's own) by default. A thumbnail wants 4–8. */
+	pixelsPerTile?: number;
+	/** Which parts to draw; every part the clip carries by default. */
+	parts?: Partial<ClipParts>;
+}
 /**
  * The pictures the viewport draws, for a plugin's own lists and previews: the same
  * cached canvases, so asking for one costs nothing after the first time. Everything is
@@ -3010,6 +3026,17 @@ export interface GraphicsApi {
 	 * tile rect. Everything it needs is loaded first; null without a map or a canvas.
 	 */
 	renderRect(rect: Rect, options?: Partial<MapImageOptions>): Promise<Blob | null>;
+	/**
+	 * A `Clip` drawn as the clipboard layer's paste ghost draws it: the picture (its own
+	 * tiles, or the catalogue's for a doodad-only clip), then units, sprites and doodad
+	 * overlays with the viewport's own graphics, then location boxes — a thumbnail for a
+	 * list of clips, or the ghost under the pointer while a plugin stamps one. It is drawn
+	 * with the graphics of the clip's *own* tileset (`clip.era`), which are in memory for
+	 * the open map once loaded and otherwise not, so a clip from another tileset answers
+	 * null; so does a missing tileset or a page with no canvas. Synchronous and uncached:
+	 * keep the result while the clip and the tileset stay the same.
+	 */
+	renderClip(clip: Clip, options?: RenderClipOptions): PluginImage | null;
 	/** The colour a player's units are drawn in, `#rrggbb`. */
 	playerColor(owner: number): string;
 	/**
@@ -3413,6 +3440,14 @@ export interface ClipboardApi {
 	 * nothing to copy.
 	 */
 	copy(source?: ClipSource): Clip | null;
+	/**
+	 * The clip `copy` would take, handed back instead of put on the clipboard — for a
+	 * plugin keeping clips of its own without disturbing the user's. `parts` overrides
+	 * `parts()` for this one capture. Null when there is nothing to take.
+	 */
+	capture(source?: ClipSource, options?: {
+		parts?: Partial<ClipParts>;
+	}): Clip | null;
 	/** Copy, then remove the source's objects as one undo step (terrain and fog stay). Null when there was nothing. */
 	cut(source?: ClipSource): Clip | null;
 	/**
@@ -4510,7 +4545,12 @@ export interface StorageApi {
 	 * api.storage.set("options", { ...opts, showGrid: false });
 	 */
 	get<T>(key: string, fallback: T): T;
-	set(key: string, value: unknown): void;
+	/**
+	 * Store a value. False when the browser refused the write — its storage quota is a few
+	 * megabytes for the whole editor — so a plugin keeping something the user made can say
+	 * so instead of losing it silently.
+	 */
+	set(key: string, value: unknown): boolean;
 	remove(key: string): void;
 }
 /** A slug for storage keys and log prefixes. */
