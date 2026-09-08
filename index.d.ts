@@ -43,18 +43,44 @@ export type CombineMode =
 /** Only the first occurrence is used. */
  | "first";
 /**
+ * The byte encodings a map's text can be in, and how to tell which one a file used.
+ *
+ * StarEdit wrote the string table in whatever code page Windows was running — EUC-KR
+ * (CP949) on a Korean machine, Shift_JIS on a Japanese one, Windows-1252 nearly everywhere
+ * else — and 1.16.1 still reads it that way. Remastered writes UTF-8 and, reading, tries
+ * UTF-8 first and falls back to the client's legacy code page when the bytes are not
+ * valid UTF-8. The file itself carries no note of which was used, so a table is *guessed*
+ * on open (`detectTextEncoding`) and the guess is a setting the user can correct
+ * (Scenario ▸ Map Revision).
+ *
+ * Decoding is the platform's (`TextDecoder` knows every label here). Encoding is not —
+ * `TextEncoder` is UTF-8 only — so each legacy encoding's table is built once, lazily,
+ * by decoding every byte and every lead/trail byte pair it has and remembering what came
+ * back (`reverseTable`). A character the encoding cannot hold is written as `?`, the
+ * way StarEdit's own dialogs did, and `unencodable` lists them so Check Map and the
+ * dialog can say so before the file is written.
+ */
+export type TextEncoding = "utf-8" | "euc-kr" | "shift_jis" | "gbk" | "big5" | "windows-1251" | "windows-1252";
+/**
  * STR/STRx string table.
  *
  * Index 0 means "no string" and is never stored. Indices are referenced from TRIG,
  * MRGN, SPRP and friends — several of which we round-trip as raw bytes — so the table
  * must keep its index space stable across a save. Entries are therefore addressed by
  * position, never renumbered.
+ *
+ * The bytes carry no note of their encoding (see `text/encoding.ts`): `decodeStrings`
+ * guesses one from the whole table's bytes unless told, and `encodeStrings` writes the
+ * table's, so a file opened and saved keeps its bytes and a Korean file edited on a
+ * Korean game stays readable there.
  */
 export interface StringTable {
 	/** `strings[i]` is string index `i`; slot 0 is always null. */
 	strings: (string | null)[];
 	/** True when the source section was STRx (Remastered, 32-bit count and offsets). */
 	extended: boolean;
+	/** How the text is written to bytes; guessed on open, a setting afterwards. */
+	encoding: TextEncoding;
 }
 export interface UnitRecord {
 	serial: number;
@@ -1538,6 +1564,8 @@ export interface MapVersionView {
 	type: string;
 	/** Whether the string table is STRx. */
 	extendedStrings: boolean;
+	/** How the string table's text is written to bytes. */
+	textEncoding: TextEncoding;
 	/** The file extension StarEdit would give it. */
 	extension: string;
 }
@@ -1771,7 +1799,12 @@ export interface StringImport {
 		message: string;
 	}[];
 }
+export type Locale = "en" | "ko";
+/** `"auto"` follows the browser (or the desktop app's system language). */
+export type LanguagePreference = "auto" | Locale;
 export interface Preferences {
+	/** The editor's own language: `"auto"` follows the browser's, else one of `LOCALES`. Applied live. */
+	language: LanguagePreference;
 	/** Show the splash while the game data loads; off starts straight on the editor. */
 	splash: boolean;
 	/** Ask before closing or replacing a map with unsaved changes. */
@@ -1986,6 +2019,8 @@ export interface PluginApi {
 	readonly commands: CommandsApi;
 	/** Live objects one plugin holds out for others to use, found by name and watched for arriving. */
 	readonly services: ServicesApi;
+	/** The plugin's words in the editor's language: its own catalogues, and a `t` over them. */
+	readonly i18n: I18nApi;
 	readonly events: EventsApi;
 	/**
 	 * A small key-value store of the plugin's own, kept in the browser's local storage under
@@ -2588,6 +2623,12 @@ export interface UpdateTransaction {
 	readonly cuwp: CuwpUpdate;
 	/** Scenario ▸ Map Revision: VER / TYPE and, moving to or from Remastered, the string table's width. */
 	setVersion(version: MapVersion, extendedStrings?: boolean): void;
+	/**
+	 * Scenario ▸ Map Revision: how the string table's text is written to bytes. A map's
+	 * file carries no note of it; the editor guesses on open (`document.version().textEncoding`)
+	 * and this is the correction. The strings are unchanged; the table is re-encoded on save.
+	 */
+	setTextEncoding(encoding: TextEncoding): void;
 	/** A line for the status bar, appended to the label. */
 	note(text: string): void;
 }
@@ -4434,8 +4475,9 @@ export interface MenuItemSpec {
 	 */
 	icon?: "plugin" | PluginIcon;
 	/**
-	 * Where in the menu: the label of the built-in item or submenu to sit directly under
-	 * (`"Open Recent"`). Without it, or when nothing has that label, the item goes to the
+	 * Where in the menu: the English label of the built-in item or submenu to sit directly
+	 * under (`"Open Recent"`) — labels are identities, and the same whatever language the
+	 * menu is showing. Without it, or when nothing has that label, the item goes to the
 	 * end of the menu after a separator.
 	 */
 	after?: string;
@@ -4506,6 +4548,8 @@ export interface HotkeyApi {
 export type PluginEvent = 
 /** A map was opened, closed or replaced. */
 "document"
+/** The editor's language changed (Preferences ▸ Display): re-label what is showing through `api.i18n.t`. */
+ | "language"
 /** Any committed edit (every `document.edit`, stroke, undo and redo bumps it, terrain or not), and a fog edit. */
  | "terrain" | "units" | "doodads" | "locations" | "settings" | "triggers" | "layer"
 /** THG2 sprites — the same bump doodad edits make. */
@@ -4551,6 +4595,28 @@ export interface DocumentEvent {
 	fileName: string | null;
 	/** `document.id()` after the change: the map now in front, or null after a close. */
 	id: number | null;
+}
+/**
+ * The plugin's words in the editor's language. The editor's own chrome is translated
+ * the same way — English text as the key, a flat catalogue per language — and a plugin
+ * brings its catalogues and gets a `t` over them: an untranslated string is its own
+ * English. Placeholders are `{name}`, `{n, plural, one {…} other {…}}`,
+ * `{x, select, …}` and, for Korean, `{name|을}` (the particle agrees with the value).
+ *
+ * @example
+ * api.i18n.register({ ko: { "Count units\u2026": "유닛 세기…", "{n} units": "유닛 {n}개" } });
+ * api.menu.add("Tools", { label: api.i18n.t("Count units\u2026"), run: () => api.ui.alert(api.i18n.t("{n} units", { n: 3 })) });
+ * api.events.on("language", () => relabel());
+ */
+export interface I18nApi {
+	/** The editor's language, a BCP 47 primary tag: `"en"`, `"ko"`. */
+	readonly language: string;
+	/** Add catalogues, keyed by language; a later one overrides earlier entries. */
+	register(catalogues: Record<string, Record<string, string>>): Disposable;
+	/** The text in the current language, placeholders filled; the text itself when there is no translation. */
+	t(text: string, params?: Record<string, string | number>): string;
+	/** `t` with a context, for the same English words meant differently in two places. */
+	tc(context: string, text: string, params?: Record<string, string | number>): string;
 }
 /**
  * Listeners are notifications: they run after the change, in the order the plugins were
