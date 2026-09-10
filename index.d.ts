@@ -1051,6 +1051,12 @@ export interface Toast {
  * default colour, so a string written before the remaster can render differently now —
  * `bleedingLines` finds exactly that case, and the Repair plugin turns it into a finding
  * offering to write the reset the old game supplied for free.
+ *
+ * `runsOf` is a modern renderer in the other way too: it takes one alignment for a whole
+ * line, where 1.16.1 obeyed every alignment code on it and stacked the pieces between
+ * them in one place. `stackedLines` finds the lines that were drawn that way and
+ * `flattenStacks` lays them out left to right — the one rewrite here that loses something
+ * (where each piece sat), which is why the Repair plugin offers it unticked.
  */
 /** What a control byte does. Colours carry an `rgb`; the rest are layout or visibility. */
 export type CodeEffect = "color" | "mimic" | "invisible" | "align" | "clip" | "nothing" | "space";
@@ -1094,6 +1100,23 @@ export interface BleedingLine {
 	line: number;
 	/** The code Remastered carries onto it — the whole entry, so a caller can name it. */
 	carried: TextCode;
+}
+/**
+ * A line the game draws in more than one place at once. 0x12 and 0x13 move the text that
+ * follows them to the right or the centre of the line they are on, and 1.16.1 honoured
+ * every one of them: `Name<12>by Author` drew `Name` at the left and `by Author` at the
+ * right of the same line. Lobby names, unit names and briefings were built out of that —
+ * the "stacked" text a classic map shows and a renderer that takes one alignment for the
+ * whole line does not.
+ *
+ * `runsOf` is one of those renderers: `TextLine.align` holds a single alignment, the last
+ * one the line set, so every piece before it lands somewhere its author did not choose.
+ */
+export interface StackedLine {
+	/** 0-based index of the line within the string. */
+	line: number;
+	/** How many pieces of text the line draws, each at its own alignment. */
+	pieces: number;
 }
 /** Every built-in dialog, by the id `openDialogAtom` takes; `DialogHost` maps each to its component. */
 export type DialogId = "newMap" | "openMap" | "saveAs" | "exportImage" | "mapProperties" | "resizeMap" | "mapRevision" | "playerSettings" | "forceSettings" | "playerColors" | "unitSettings" | "upgradeSettings" | "techSettings" | "stringEditor" | "soundEditor" | "switches" | "locationList" | "unitProperties" | "locationProperties" | "spriteProperties" | "triggerEditor" | "missionBriefing" | "cuwpEditor" | "replaceTerrain" | "autoStarts" | "testMap" | "symmetry" | "gridSettings" | "preferences" | "shortcuts" | "validateMap" | "statistics" | "importTriggers" | "exportTriggers" | "importStrings" | "exportStrings" | "find" | "about" | "confirmClose" | "plugins" | "confirmPlugin" | "pluginDialog" | "gameData" | "update";
@@ -3684,6 +3707,11 @@ export interface NamesApi {
  * remaster can draw in colours its author never chose — `bleedingLines` finds exactly
  * those lines and `fixBleeding` writes the reset the old game supplied. Pass
  * `resetPerLine` to `runs` to see the old rendering.
+ *
+ * The other thing the old game did and a modern renderer does not is honour every
+ * alignment code on a line, stacking the pieces between them in one place: `stackedLines`
+ * finds those lines and `flattenStacks` lays them out left to right. `runs` is one of the
+ * renderers that cannot show them — `TextLine.align` is one alignment for the whole line.
  */
 export interface TextApi {
 	/** Every byte the game gives a meaning, in order; `rgb` is set for the colours only. */
@@ -3710,6 +3738,19 @@ export interface TextApi {
 	 * games draw it alike. Idempotent, and never changes what the string says.
 	 */
 	fixBleeding(text: string): string;
+	/**
+	 * The lines of `text` that 1.16.1 drew at more than one alignment at once — the
+	 * "stacked" lobby and unit names a classic map is built with. A line whose only
+	 * alignment code sits at its head is not one: that code places the line.
+	 */
+	stackedLines(text: string): StackedLine[];
+	/**
+	 * `text` with every stacked line laid out left to right: the alignment codes that split
+	 * it dropped and its pieces joined in writing order, a space between two that would
+	 * otherwise run together. Colours and every other byte survive, so nothing the string
+	 * says is lost — only where each piece sat. Idempotent.
+	 */
+	flattenStacks(text: string): string;
 }
 export type DialogSize = "sm" | "md" | "lg" | "xl" | "full";
 export interface DialogButton {
