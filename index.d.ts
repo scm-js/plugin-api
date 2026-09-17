@@ -1141,6 +1141,15 @@ export interface MapImageOptions {
 	 */
 	rect?: Rect | null;
 }
+export type TestRoute = "desktop" | "folder" | "download";
+export interface TestMapOutcome {
+	route: TestRoute;
+	/** The file's name, or its full path when the desktop wrote it. */
+	path: string;
+	launched: boolean;
+	/** Why the game did not start, when it was asked to. */
+	message?: string;
+}
 /** What the registry knows about a section name, sized for one map. */
 export interface SectionKnowledge {
 	name: string;
@@ -2309,6 +2318,18 @@ export interface DocumentApi {
 	 * a map, null.
 	 */
 	renderImage(options?: Partial<MapImageOptions>): Promise<Blob | null>;
+	/**
+	 * Tools ▸ Test Map for bytes of the plugin's own — a built map that is not the open
+	 * one. On the desktop the file is written into the game's `Maps\scmJS` folder and, with
+	 * `launch` (the preference when omitted), the game is started; in a browser it is
+	 * written into the test folder the user picked once. It never downloads: a browser
+	 * with no folder answers null, so a plugin that has already saved the file says "open
+	 * it with Test Map" instead of handing out a second copy. `fileName` gets an archive's
+	 * extension if it lacks one.
+	 */
+	test(bytes: Uint8Array, fileName: string, options?: {
+		launch?: boolean;
+	}): Promise<TestMapOutcome | null>;
 	/**
 	 * Scenario ▸ Resize / Crop Map: a transaction outside the undo model that drops both
 	 * history stacks (as the dialog does). Content keeps its place relative to `anchor`
