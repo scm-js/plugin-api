@@ -477,10 +477,10 @@ declare const ScoreType: {
 	readonly Custom: 7;
 };
 declare const UnitClass: {
-	readonly Any: 228;
-	readonly Men: 229;
-	readonly Buildings: 230;
-	readonly Factories: 231;
+	readonly Any: 229;
+	readonly Men: 230;
+	readonly Buildings: 231;
+	readonly Factories: 232;
 };
 declare const ConditionFlag: {
 	/** Game bookkeeping. */
@@ -3811,7 +3811,7 @@ export interface NamedValue {
  * the editor's own tables — the same names StarEdit shows.
  */
 export interface NamesApi {
-	/** StarEdit's name for a units.dat id; `Any unit` / `Men` / `Buildings` / `Factories` for the trigger classes 228–231. */
+	/** StarEdit's name for a units.dat id; `Any unit` / `Men` / `Buildings` / `Factories` for the trigger classes 229–232 (228 is the game's `None`). */
 	unit(id: number): string;
 	units(): NamedValue[];
 	upgrade(id: number): string;
