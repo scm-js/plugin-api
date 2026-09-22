@@ -1855,11 +1855,55 @@ export interface Preferences {
 	 * is replaced by the first map opened rather than kept beside it.
 	 */
 	multipleMaps: boolean;
-	/** What File ▸ New and the startup map start with. */
+	/**
+	 * What File ▸ New and the startup map start with. `version` is the file's revision:
+	 * Brood War (VER 205, what every build reads) or Remastered (206, 32-bit strings).
+	 */
 	newMap: {
 		tileset: TilesetId;
 		width: number;
 		height: number;
+		version: NewMapVersion;
+	};
+	/**
+	 * Startup: `reopenLast` opens the most recent file again in place of the blank map
+	 * (the desktop app straight away; a browser needs a click first, so it asks in a
+	 * notice), and `recents` is how many File ▸ Open Recent keeps.
+	 */
+	startup: {
+		reopenLast: boolean;
+		recents: number;
+	};
+	/**
+	 * What the Save dialog starts from: the options the file was opened with
+	 * (`"asOpened"`, the default), or one of its presets. `compression` is for a map with
+	 * no origin — new, or opened from a bare .chk — where there is nothing to follow;
+	 * `"asOpened"` there means StarEdit's PKWARE.
+	 */
+	save: {
+		start: "asOpened" | "everything" | "smallest";
+		compression: "asOpened" | ArchiveCompression;
+	};
+	/** How many edits Undo keeps per map (SCMDraft keeps 200). */
+	undoLevels: number;
+	/**
+	 * The mouse wheel over the map: scrolling, with Ctrl+wheel zooming (the default), or
+	 * zooming, with Shift+wheel scrolling sideways. `zoomToCursor` keeps the tile under the
+	 * pointer in place when the wheel zooms; the menu and keyboard keep the centre.
+	 */
+	view: {
+		wheel: "scroll" | "zoom";
+		zoomToCursor: boolean;
+	};
+	/**
+	 * What the palettes start on: the owner of placed units and sprites (0 = player 1),
+	 * the brush size (1–7), and the size of a location the Locations palette's New makes,
+	 * in tiles.
+	 */
+	placement: {
+		owner: number;
+		brushSize: number;
+		locationTiles: number;
 	};
 	/** Initial View ▸ Animate Water / Animate Units. */
 	animateWater: boolean;
@@ -1912,6 +1956,8 @@ export interface Preferences {
 }
 /** See `Preferences.plugins.updates`. */
 export type PluginUpdateMode = "notify" | "manual" | "auto";
+/** The revisions a new map can start on; the two older ones are for opening old files, not making new ones. */
+export type NewMapVersion = Extract<MapVersion, "broodwar" | "remastered">;
 /**
  * The version a host provides; a manifest that asks for a newer one is refused. It stays
  * at 1 while the API is only used by the plugins in the scm-js organisation and grows
@@ -4078,6 +4124,40 @@ export interface DialogSlotSpec {
 	mount(body: HTMLElement, host: DialogSlotHost): void | (() => void);
 }
 /**
+ * A page of the plugin's own in Edit ▸ Preferences, listed under Plugins by the plugin's
+ * name — where a user looks for a setting, instead of a menu item per plugin. One page per
+ * plugin; registering again replaces it. `mount` runs the first time the page is shown
+ * while the dialog is open and the page then stays mounted until the dialog closes, so
+ * what the user changed is still there when OK or Apply calls `apply`; the cleanup runs
+ * on close. A page with no `apply` writes its settings as they change (`api.storage`),
+ * which is the simpler shape when nothing needs undoing on Cancel.
+ *
+ * @example
+ * api.ui.preferencesPage({
+ *   mount(body) {
+ *     const w = api.ui.widgets;
+ *     const dock = w.select([{ value: "float", label: "Floating" }, { value: "right", label: "Docked" }], { value: settings.dock });
+ *     body.append(w.form([{ label: "Panel", field: dock }]), w.hint("Where the panel opens."));
+ *     pending = () => save({ dock: dock.value });
+ *   },
+ *   apply: () => pending?.(),
+ * });
+ */
+export interface PreferencesPageSpec {
+	/** Fill `body` with the page's controls; return a cleanup if you need one. */
+	mount(body: HTMLElement, page: PreferencesPageHost): void | (() => void);
+	/** Called on OK and Apply while the dialog is open and the page has been shown. */
+	apply?(): void;
+	/** Called by Reset to defaults while the page is the one showing. */
+	reset?(): void;
+}
+/** What a preferences page's `mount` is handed. */
+export interface PreferencesPageHost {
+	readonly plugin: PluginInfo;
+	/** Close the Preferences dialog. */
+	close(): void;
+}
+/**
  * What `view.flash` highlights: a tile rect, or units / locations by index. The
  * highlight fades over `ms` (600 by default) and never blocks or takes the pointer; it is
  * the shared way to say "this just changed" or "look here", so every plugin's flash looks
@@ -4286,6 +4366,12 @@ export interface UiApi {
 	 * });
 	 */
 	dialogSlot(dialog: DialogSlotId, spec: DialogSlotSpec): Disposable;
+	/**
+	 * A page of the plugin's own in Edit ▸ Preferences, under Plugins — see
+	 * `PreferencesPageSpec`. `ui.open("preferences", { page: "plugin:<id>" })` opens it.
+	 * Returns the registration; it leaves with `dispose()` or the plugin.
+	 */
+	preferencesPage(spec: PreferencesPageSpec): Disposable;
 	/**
 	 * Take over the pointer on the map until `stop()`, Esc, a right-click, a map change
 	 * or another tool. One tool runs at a time — starting one stops the previous — and a
