@@ -816,74 +816,6 @@ export type TerrainPick = {
 	kind: "tile";
 	id: number;
 };
-export interface Diamond {
-	x: number;
-	y: number;
-}
-export interface IsomCheck {
-	/** Rects that have tiles under them. */
-	rects: number;
-	/** Rects whose tiles are not what their ISOM resolves to (doodad tiles are excused). */
-	mismatched: number;
-}
-/**
- * `checkIsom` with what a rebuild would do about it — the verdict the palette, Check Map
- * and the Repair plugin draw from.
- *
- * The two numbers measure opposite directions and are not inverses: `mismatched` is the
- * lattice failing to reproduce the tiles, while a rebuild votes a lattice out of the
- * tiles. A rebuild converges in one pass and leaves `inherent` behind for good, because
- * hand-placed tiles, blends and another editor's ground are not terrain any lattice
- * describes. Reporting `mismatched` alone therefore recommended a repair that could not
- * move the number, on every map with terrain like that.
- */
-export interface IsomReport extends IsomCheck {
-	/** Of `mismatched`, the rects a rebuild would leave: terrain no lattice describes. */
-	inherent: number;
-	/** A rebuild would bring more than `STALE_ISOM_SHARE` of the rects back in step. */
-	stale: boolean;
-}
-export interface LocationStringChange {
-	index: number;
-	before: string | null;
-	after: string | null;
-}
-export interface LocationChange {
-	index: number;
-	before: LocationRecord;
-	after: LocationRecord;
-	/** A string slot the edit adds (a name no existing string matched); removed again on undo. */
-	string?: LocationStringChange;
-}
-export interface Bounds {
-	left: number;
-	top: number;
-	right: number;
-	bottom: number;
-}
-export interface LocationPatch {
-	name?: string;
-	left?: number;
-	top?: number;
-	right?: number;
-	bottom?: number;
-	elevationFlags?: number;
-}
-export type FogMode = "fog" | "clear";
-export interface SpriteChange {
-	index: number;
-	before: SpriteRecord | null;
-	after: SpriteRecord | null;
-}
-export type SpriteKind = "pure" | "unit";
-/** Unit type catalogue: StarEdit names by units.dat id, and the palette's grouping of them. */
-export type RaceKey = "terran" | "zerg" | "protoss" | "neutral";
-export interface UnitGroup {
-	race: RaceKey;
-	label: string;
-	/** units.dat ids, in palette order. */
-	units: number[];
-}
 export interface UnitsDat {
 	/** flingy.dat index. */
 	flingy: Uint8Array;
@@ -974,6 +906,164 @@ export interface TechdataDat {
 	broodWar: Uint8Array;
 	/** The technology's name: a 1-based `stat_txt.tbl` index, 0 for none. */
 	label: Uint16Array;
+}
+/**
+ * Unit edits as invertible change lists, in the same spirit as terrain's `TileChange`.
+ * `before`/`after` are whole records: null `before` is an insertion at `index`, null
+ * `after` a removal, both set a replacement. Removals are listed highest index first so
+ * that applying them in order keeps the remaining indices valid; undo walks the list
+ * backwards and so re-inserts lowest first.
+ */
+export interface UnitChange {
+	index: number;
+	before: UnitRecord | null;
+	after: UnitRecord | null;
+}
+export interface SpriteChange {
+	index: number;
+	before: SpriteRecord | null;
+	after: SpriteRecord | null;
+}
+export type SpriteKind = "pure" | "unit";
+export interface DoodadChange {
+	index: number;
+	before: DoodadRecord | null;
+	after: DoodadRecord | null;
+}
+export interface DoodadPlacementOptions {
+	/** Skip StarEdit's ground check: any doodad goes on any terrain, even over another doodad. */
+	placeAnywhere: boolean;
+	/** Keep the left column on an even tile, as StarEdit always does. */
+	snapToGrid: boolean;
+	/** Place as plain terrain: the tiles (both sections) and any overlay sprite, no DD2 record — a placement and a conversion in one. */
+	asTerrain: boolean;
+}
+export interface DoodadVerdict {
+	ok: boolean;
+	/** The footprint leaves the map (never allowed). */
+	outOfBounds: boolean;
+	/** Cell indices (row-major) whose ground fails the check, for the ghost to mark red. */
+	bad: number[];
+}
+export interface LocationStringChange {
+	index: number;
+	before: string | null;
+	after: string | null;
+}
+export interface LocationChange {
+	index: number;
+	before: LocationRecord;
+	after: LocationRecord;
+	/** A string slot the edit adds (a name no existing string matched); removed again on undo. */
+	string?: LocationStringChange;
+}
+export interface Bounds {
+	left: number;
+	top: number;
+	right: number;
+	bottom: number;
+}
+export interface LocationPatch {
+	name?: string;
+	left?: number;
+	top?: number;
+	right?: number;
+	bottom?: number;
+	elevationFlags?: number;
+}
+/** The change lists of one edit; `HistoryEntry` adds the label. */
+export interface HistoryEdit {
+	changes: TileChange[];
+	/** The isometric brush's changes to `scenario.isom`, undone together with the tiles. */
+	isom?: TileChange[];
+	/**
+	 * Set when the edit gave a map an ISOM section it did not have (Rebuild ISOM). Undo
+	 * removes the section again rather than leaving an all-zero one behind.
+	 */
+	createdIsom?: Uint16Array;
+	/**
+	 * Set when the edit rebuilt an existing lattice from the tiles, which is the one edit
+	 * to `isom` the ISOM health is re-measured after: a brush stroke keeps the two in step
+	 * by construction and is deliberately not measured (`useIsomStatus`), and measuring
+	 * costs a second rebuild.
+	 */
+	rebuiltIsom?: boolean;
+	/** Unit placements, moves and deletions (see editor/units.ts). */
+	units?: UnitChange[];
+	/**
+	 * Doodad tiles stamped into or lifted off MTXM alone — TILE keeps the ground beneath
+	 * (see editor/doodads.ts). Applied after `changes`, so a terrain stroke that removes
+	 * the doodads it painted over restores their remaining cells on top of its own edit.
+	 */
+	doodadTiles?: TileChange[];
+	/** DD2 record insertions, removals and replacements. */
+	doodads?: DoodadChange[];
+	/** THG2 record changes: the Sprites layer's edits, and a doodad's overlay sprite coming and going with it. */
+	sprites?: SpriteChange[];
+	/** MRGN slot replacements — create, move, resize, rename, delete (see editor/locations.ts); a rename may carry a string. */
+	locations?: LocationChange[];
+	/** Fog of war edits to `scenario.mask` (see editor/fog.ts); `at` indexes the MASK byte. */
+	fog?: TileChange[];
+	/**
+	 * Set when the edit gave a map a MASK section it did not have (the first fog stroke
+	 * on such a map). Undo removes the section again.
+	 */
+	createdMask?: Uint8Array;
+}
+/**
+ * Why the map changed: an edit recorded in the history, an undo or redo of one, a dialog
+ * writing its tables (settings, triggers, strings — outside the history), a change to the
+ * whole document (resize, tileset change, raw section edit), or other people's edits on a
+ * shared map.
+ */
+export type CommitReason = "edit" | "undo" | "redo" | "tables" | "whole" | "remote";
+/** Which parts of the map one commit touched. */
+export interface CommitParts {
+	terrain: boolean;
+	isom: boolean;
+	units: boolean;
+	doodads: boolean;
+	sprites: boolean;
+	locations: boolean;
+	fog: boolean;
+	settings: boolean;
+	triggers: boolean;
+}
+export interface Diamond {
+	x: number;
+	y: number;
+}
+export interface IsomCheck {
+	/** Rects that have tiles under them. */
+	rects: number;
+	/** Rects whose tiles are not what their ISOM resolves to (doodad tiles are excused). */
+	mismatched: number;
+}
+/**
+ * `checkIsom` with what a rebuild would do about it — the verdict the palette, Check Map
+ * and the Repair plugin draw from.
+ *
+ * The two numbers measure opposite directions and are not inverses: `mismatched` is the
+ * lattice failing to reproduce the tiles, while a rebuild votes a lattice out of the
+ * tiles. A rebuild converges in one pass and leaves `inherent` behind for good, because
+ * hand-placed tiles, blends and another editor's ground are not terrain any lattice
+ * describes. Reporting `mismatched` alone therefore recommended a repair that could not
+ * move the number, on every map with terrain like that.
+ */
+export interface IsomReport extends IsomCheck {
+	/** Of `mismatched`, the rects a rebuild would leave: terrain no lattice describes. */
+	inherent: number;
+	/** A rebuild would bring more than `STALE_ISOM_SHARE` of the rects back in step. */
+	stale: boolean;
+}
+export type FogMode = "fog" | "clear";
+/** Unit type catalogue: StarEdit names by units.dat id, and the palette's grouping of them. */
+export type RaceKey = "terran" | "zerg" | "protoss" | "neutral";
+export interface UnitGroup {
+	race: RaceKey;
+	label: string;
+	/** units.dat ids, in palette order. */
+	units: number[];
 }
 export interface SpriteGroup {
 	label: string;
@@ -1349,18 +1439,6 @@ export interface StringUsage {
 	ref: number;
 	label: string;
 }
-/**
- * Unit edits as invertible change lists, in the same spirit as terrain's `TileChange`.
- * `before`/`after` are whole records: null `before` is an insertion at `index`, null
- * `after` a removal, both set a replacement. Removals are listed highest index first so
- * that applying them in order keeps the remaining indices valid; undo walks the list
- * backwards and so re-inserts lowest first.
- */
-export interface UnitChange {
-	index: number;
-	before: UnitRecord | null;
-	after: UnitRecord | null;
-}
 export interface PlacementOptions {
 	/** Refuse to put a unit on top of another (ground units and buildings only). */
 	checkCollision: boolean;
@@ -1693,65 +1771,6 @@ export interface ChangeTilesetResult {
 	/** Overlay sprites that belonged to the dropped doodads. */
 	spritesDropped: number;
 	refilled: boolean;
-}
-export interface DoodadChange {
-	index: number;
-	before: DoodadRecord | null;
-	after: DoodadRecord | null;
-}
-export interface DoodadPlacementOptions {
-	/** Skip StarEdit's ground check: any doodad goes on any terrain, even over another doodad. */
-	placeAnywhere: boolean;
-	/** Keep the left column on an even tile, as StarEdit always does. */
-	snapToGrid: boolean;
-	/** Place as plain terrain: the tiles (both sections) and any overlay sprite, no DD2 record — a placement and a conversion in one. */
-	asTerrain: boolean;
-}
-export interface DoodadVerdict {
-	ok: boolean;
-	/** The footprint leaves the map (never allowed). */
-	outOfBounds: boolean;
-	/** Cell indices (row-major) whose ground fails the check, for the ghost to mark red. */
-	bad: number[];
-}
-/** The change lists of one edit; `HistoryEntry` adds the label. */
-export interface HistoryEdit {
-	changes: TileChange[];
-	/** The isometric brush's changes to `scenario.isom`, undone together with the tiles. */
-	isom?: TileChange[];
-	/**
-	 * Set when the edit gave a map an ISOM section it did not have (Rebuild ISOM). Undo
-	 * removes the section again rather than leaving an all-zero one behind.
-	 */
-	createdIsom?: Uint16Array;
-	/**
-	 * Set when the edit rebuilt an existing lattice from the tiles, which is the one edit
-	 * to `isom` the ISOM health is re-measured after: a brush stroke keeps the two in step
-	 * by construction and is deliberately not measured (`useIsomStatus`), and measuring
-	 * costs a second rebuild.
-	 */
-	rebuiltIsom?: boolean;
-	/** Unit placements, moves and deletions (see editor/units.ts). */
-	units?: UnitChange[];
-	/**
-	 * Doodad tiles stamped into or lifted off MTXM alone — TILE keeps the ground beneath
-	 * (see editor/doodads.ts). Applied after `changes`, so a terrain stroke that removes
-	 * the doodads it painted over restores their remaining cells on top of its own edit.
-	 */
-	doodadTiles?: TileChange[];
-	/** DD2 record insertions, removals and replacements. */
-	doodads?: DoodadChange[];
-	/** THG2 record changes: the Sprites layer's edits, and a doodad's overlay sprite coming and going with it. */
-	sprites?: SpriteChange[];
-	/** MRGN slot replacements — create, move, resize, rename, delete (see editor/locations.ts); a rename may carry a string. */
-	locations?: LocationChange[];
-	/** Fog of war edits to `scenario.mask` (see editor/fog.ts); `at` indexes the MASK byte. */
-	fog?: TileChange[];
-	/**
-	 * Set when the edit gave a map a MASK section it did not have (the first fog stroke
-	 * on such a map). Undo removes the section again.
-	 */
-	createdMask?: Uint8Array;
 }
 export interface WireListChange<T> {
 	index: number;
@@ -3410,8 +3429,9 @@ export interface GraphicsApi {
 	 * overlays with the viewport's own graphics, then location boxes — a thumbnail for a
 	 * list of clips, or the ghost under the pointer while a plugin stamps one. It is drawn
 	 * with the graphics of the clip's *own* tileset (`clip.era`), which are in memory for
-	 * the open map once loaded and otherwise not, so a clip from another tileset answers
-	 * null; so does a missing tileset or a page with no canvas. Synchronous and uncached:
+	 * the open map once loaded; a clip from another tileset answers null until
+	 * `tileset.load(id)` has fetched that one. So does a missing tileset or a page with no
+	 * canvas. Synchronous and uncached:
 	 * keep the result while the clip and the tileset stay the same.
 	 */
 	renderClip(clip: Clip, options?: RenderClipOptions): PluginImage | null;
@@ -3772,8 +3792,14 @@ export interface TilesetApi {
 	id(): TilesetId | null;
 	name(): string;
 	isLoaded(): boolean;
-	/** Fetch and decode the graphics; resolves false when they were never extracted. */
-	load(): Promise<boolean>;
+	/**
+	 * Fetch and decode the graphics — the open map's tileset's, or `tileset`'s — and keep
+	 * them in memory; resolves false when they were never extracted. Loading another
+	 * tileset changes nothing about the map: it is for `graphics.renderClip` drawing a clip
+	 * that came from a map on that tileset (a stamp, a recording), which answers null until
+	 * its tileset's graphics are loaded.
+	 */
+	load(tileset?: TilesetId): Promise<boolean>;
 	raw(): LoadedTileset | null;
 }
 export interface SelectionApi {
@@ -4947,6 +4973,8 @@ export interface HotkeyApi {
 export type PluginEvent = 
 /** A map was opened, closed or replaced. */
 "document"
+/** A change was committed to the map in front; the listener gets a `CommitEvent` saying what and where. */
+ | "commit"
 /** The editor's language changed (Preferences ▸ Display): re-label what is showing through `api.i18n.t`. */
  | "language"
 /** Any committed edit (every `document.edit`, stroke, undo and redo bumps it, terrain or not), and a fog edit. */
@@ -4975,6 +5003,41 @@ export type PluginEvent =
  | "dialogs"
 /** The game data source changed: installed, switched to another data set, or a copy removed. `gameData.source()` says what it is now. */
  | "gameData";
+/**
+ * What the `"commit"` event hands its listeners: one change to the map in front, after it
+ * is in the scenario. Every stroke, `document.edit`, undo and redo is one commit; so is a
+ * dialog's OK or a `document.update` (reason `"tables"`), a resize, tileset change or raw
+ * section edit (`"whole"`), and a batch of other people's edits on a shared map
+ * (`"remote"`). A dialog that writes both settings and triggers may send two. Opening,
+ * closing and switching maps are not commits — the `"document"` event says those.
+ *
+ * @example
+ * api.events.on("commit", (e) => {
+ *   if (e.parts.terrain && e.area) redrawTiles(e.area);
+ *   else if (e.reason === "whole" || e.reason === "remote") redrawAll();
+ * });
+ */
+export interface CommitEvent {
+	/** `document.id()` of the map it happened to (always the one in front). */
+	id: number | null;
+	reason: CommitReason;
+	/**
+	 * The history label — the words Edit ▸ Undo shows, in the editor's language; for an undo
+	 * or redo, the label of the entry taken back or put back. The update's label for a
+	 * `document.update`, the operation's name for `"whole"`, and "" for a built-in dialog's
+	 * OK and for other people's edits.
+	 */
+	label: string;
+	/**
+	 * The tiles the change fell on, far edges exclusive: every changed tile, and the tile
+	 * under each moved, placed or removed object's position (its picture reaches further —
+	 * widen the rect by the largest picture you draw). Null when the change has no place on
+	 * the map (`"tables"`) or may have touched all of it (`"whole"`, `"remote"`).
+	 */
+	area: Rect | null;
+	/** Which parts changed. All of them for `"whole"` and `"remote"`, which do not say. */
+	parts: CommitParts;
+}
 /** Why other people's changes are waiting: a stroke under way on the map, a dialog that edits the map open, another map in front. */
 export type SyncHold = "stroke" | "dialog" | "behind";
 export interface SyncReport {
@@ -5101,8 +5164,10 @@ export interface EventsApi {
 	 *   if (e.reason === "open") check(e.fileName);
 	 * });
 	 * api.events.on("terrain", () => redraw());
+	 * api.events.on("commit", (e) => console.log(e.reason, e.label, e.area));
 	 */
 	on(event: "document", listener: (event: DocumentEvent) => void): Disposable;
+	on(event: "commit", listener: (event: CommitEvent) => void): Disposable;
 	on(event: PluginEvent, listener: () => void): Disposable;
 }
 export interface StorageApi {
