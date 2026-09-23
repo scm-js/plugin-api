@@ -1694,7 +1694,6 @@ export interface ChangeTilesetResult {
 	spritesDropped: number;
 	refilled: boolean;
 }
-export type SymmetryMode = "none" | "h" | "v" | "hv" | "rot180" | "rot90" | "diag" | "adiag";
 export interface DoodadChange {
 	index: number;
 	before: DoodadRecord | null;
@@ -1714,32 +1713,6 @@ export interface DoodadVerdict {
 	outOfBounds: boolean;
 	/** Cell indices (row-major) whose ground fails the check, for the ghost to mark red. */
 	bad: number[];
-}
-export type StartLayout = "ring" | "corners";
-export interface StartPlacementResult {
-	changes: UnitChange[];
-	/** Per player (0-based), where the start location landed, or null when nothing within reach fit. */
-	placed: ({
-		x: number;
-		y: number;
-	} | null)[];
-	removed: number;
-}
-export type Side = "left" | "top" | "right" | "bottom";
-export interface BlendCandidate {
-	/** MTXM tile id to place. */
-	id: number;
-	megatile: number;
-	/** `edgeDistance` between the anchor's side and this tile's opposite side. */
-	distance: number;
-}
-export interface BlendOptions {
-	/** Largest distance still listed. */
-	maxDistance: number;
-	/** Most candidates listed per side. */
-	limit: number;
-	/** Optional filter over tile ids (the palette's group-kind dropdown). */
-	include?: (id: number) => boolean;
 }
 /** The change lists of one edit; `HistoryEntry` adds the label. */
 export interface HistoryEdit {
@@ -1779,6 +1752,128 @@ export interface HistoryEdit {
 	 * on such a map). Undo removes the section again.
 	 */
 	createdMask?: Uint8Array;
+}
+export interface WireListChange<T> {
+	index: number;
+	before: T | null;
+	after: T | null;
+}
+export interface WireLocationChange {
+	index: number;
+	after: LocationRecord;
+	/** The name as text (`after.nameIndex` is resolved again where it lands); null for none. */
+	name: string | null;
+	/** The slot was empty before: a new location, which moves to a free slot if someone else took this one. */
+	created: boolean;
+}
+/**
+ * One undo step's worth of terrain and objects. The grids are flat number lists: terrain
+ * `[at, mtxm, tile, …]`, the others `[at, value, …]`. `reverse` marks the undo of an edit:
+ * its parts go in the reverse of the usual order, as undo walks them.
+ */
+export interface SyncEditOp {
+	kind: "edit";
+	label: string;
+	/** The map size the cells index; a grid part is skipped on a map of another size. */
+	width: number;
+	height: number;
+	reverse?: boolean;
+	terrain?: number[];
+	isom?: number[];
+	doodadTiles?: number[];
+	fog?: number[];
+	/** The whole ISOM lattice (base64 of the u16 cells) the edit gave the map, or null for taking it away. */
+	isomWhole?: string | null;
+	maskWhole?: string | null;
+	units?: WireListChange<UnitRecord>[];
+	doodads?: WireListChange<DoodadRecord>[];
+	sprites?: WireListChange<SpriteRecord>[];
+	locations?: WireLocationChange[];
+}
+declare const SYNC_FIELDS: readonly [
+	"type",
+	"fileVersion",
+	"nameIndex",
+	"descriptionIndex",
+	"playerTypes",
+	"editorPlayerTypes",
+	"playerRaces",
+	"playerColors",
+	"playerRgb",
+	"forces",
+	"unitSettings",
+	"unitAvailability",
+	"upgradeSettings",
+	"upgradeRestrictions",
+	"techSettings",
+	"techRestrictions",
+	"wavs",
+	"cuwp",
+	"cuwpUsed",
+	"triggers",
+	"briefing",
+	"switchNames"
+];
+export type SyncField = (typeof SYNC_FIELDS)[number];
+export interface SyncFieldsOp {
+	kind: "fields";
+	/** Each changed field's new value, packed (`pack`). */
+	set: Partial<Record<SyncField, unknown>>;
+	/** String slots that changed: `[index, before, after]`. */
+	strings?: [
+		number,
+		string | null,
+		string | null
+	][];
+	/** The table's length afterwards (trailing blank slots are dropped). */
+	stringsLength?: number;
+	/** The table's width and text encoding, when they changed. */
+	stringsFormat?: {
+		extended: boolean;
+		encoding: TextEncoding;
+	};
+}
+export interface SyncExtrasOp {
+	kind: "extras";
+	/** `[member name, base64 bytes]`, or null bytes for a member taken out. */
+	set: [
+		string,
+		string | null
+	][];
+}
+export interface SyncResetOp {
+	kind: "reset";
+	label: string;
+	/** The whole scenario, base64. */
+	chk: string;
+}
+export type SyncOp = SyncEditOp | SyncFieldsOp | SyncExtrasOp | SyncResetOp;
+export type SymmetryMode = "none" | "h" | "v" | "hv" | "rot180" | "rot90" | "diag" | "adiag";
+export type StartLayout = "ring" | "corners";
+export interface StartPlacementResult {
+	changes: UnitChange[];
+	/** Per player (0-based), where the start location landed, or null when nothing within reach fit. */
+	placed: ({
+		x: number;
+		y: number;
+	} | null)[];
+	removed: number;
+}
+export type Side = "left" | "top" | "right" | "bottom";
+export interface BlendCandidate {
+	/** MTXM tile id to place. */
+	id: number;
+	megatile: number;
+	/** `edgeDistance` between the anchor's side and this tile's opposite side. */
+	distance: number;
+}
+export interface BlendOptions {
+	/** Largest distance still listed. */
+	maxDistance: number;
+	/** Most candidates listed per side. */
+	limit: number;
+	/** Optional filter over tile ids (the palette's group-kind dropdown). */
+	include?: (id: number) => boolean;
 }
 export type ClipPart = "terrain" | "doodads" | "units" | "sprites" | "locations" | "fog";
 export type ClipParts = Record<ClipPart, boolean>;
@@ -2121,6 +2216,13 @@ export interface PluginApi {
 	/** The plugin's words in the editor's language: its own catalogues, and a `t` over them. */
 	readonly i18n: I18nApi;
 	readonly events: EventsApi;
+	/**
+	 * Editing the map in front together with other editors: every change to it is handed out
+	 * as an op for the plugin to carry to them, and theirs come back in, in the order a
+	 * server puts them. The scmjs.dev plugin's shared maps are built on it; the transport,
+	 * the server and who may join are the plugin's.
+	 */
+	readonly sync: SyncApi;
 	/**
 	 * A small key-value store of the plugin's own, kept in the browser's local storage under
 	 * the plugin's id and listed with everything else in Preferences ▸ Browser storage.
@@ -4317,6 +4419,11 @@ export interface PickFilesOptions {
 	multiple?: boolean;
 }
 export interface UiApi {
+	/**
+	 * The dialogs open now, bottom to top, by id: the built-in ones by their `DialogId`, a
+	 * plugin's as `"pluginDialog"`. What a shared map shows others ("in Player Settings").
+	 */
+	openDialogs(): string[];
 	/** Set the status bar line. */
 	status(text: string): void;
 	/** The status bar line as it stands. */
@@ -4864,8 +4971,78 @@ export type PluginEvent =
  | "commands"
 /** A plugin provided or withdrew a service — `services.watch` is the usual way to hear this for one name. */
  | "services"
+/** A dialog opened or closed — `ui.openDialogs()` says which are open. */
+ | "dialogs"
 /** The game data source changed: installed, switched to another data set, or a copy removed. `gameData.source()` says what it is now. */
  | "gameData";
+/** Why other people's changes are waiting: a stroke under way on the map, a dialog that edits the map open, another map in front. */
+export type SyncHold = "stroke" | "dialog" | "behind";
+export interface SyncReport {
+	/** Other people's ops applied. */
+	ops: number;
+	/** Parts of them that could not be applied — the unit they moved was deleted, the map was resized… */
+	dropped: number;
+	/** Parts of this editor's unconfirmed changes that no longer applied on top of theirs. */
+	lost: number;
+}
+export interface SyncStartOptions {
+	/**
+	 * Every change made to the shared map, as a plain object JSON can carry, in the order
+	 * made: commits, undo and redo, the dialogs' writes, archive files, and a resize or a
+	 * tileset change (the whole scenario). Each must reach the server, and every other
+	 * editor, in this order.
+	 */
+	send(op: SyncOp): void;
+	/** The session ended: the shared map was closed or replaced by another, or `stop` was called. */
+	onEnd?(reason: "closed" | "stopped"): void;
+	/** Other people's changes were applied to the map. */
+	onApplied?(report: SyncReport): void;
+}
+/**
+ * One shared map. The server confirms each op this editor sent (`confirm`, in order) and
+ * relays everyone else's (`receive`, in the order it gave them); the session applies
+ * them to the map when nothing is in the way (`holding`) and rebases this editor's
+ * unconfirmed changes on top, so every editor that has seen the same ops has the same map.
+ *
+ * @example
+ * const session = api.sync.start({ send: (op) => socket.send(JSON.stringify({ type: "op", op })) });
+ * socket.onmessage = (m) => {
+ *   const msg = JSON.parse(m.data);
+ *   if (msg.type === "ack") session?.confirm();
+ *   if (msg.type === "op") session?.receive(msg.op);
+ * };
+ */
+export interface SyncSession {
+	/** The shared map's `document.id()`. */
+	readonly documentId: number;
+	/** Another editor's op, in the server's order. False, and nothing done, for a value that is not an op. */
+	receive(op: unknown): boolean;
+	/** The server confirmed the oldest op this editor sent. */
+	confirm(): void;
+	/** Ops sent and not yet confirmed. */
+	pending(): number;
+	/** Ops and confirmations received and not yet applied. */
+	waiting(): number;
+	/**
+	 * The shared map as a file (`.scx` / `.scm`, not built), copied at this moment — for a
+	 * server to hand people joining, labelled with the last op this editor applied. Null
+	 * while anything is pending or waiting (the copy would not match any point in the
+	 * server's order) or while another map is in front. The copy is taken before the first
+	 * `await`, so a change made while the file is written is not in it.
+	 */
+	snapshot(): Promise<Uint8Array | null>;
+	holding(): SyncHold | null;
+	stop(): void;
+}
+export interface SyncApi {
+	/**
+	 * Share the map in front. Null when no map is open or another session is running (one
+	 * at a time). A session a plugin started stops when the plugin is turned off.
+	 */
+	start(options: SyncStartOptions): SyncSession | null;
+	/** The running session, whichever plugin started it. */
+	current(): SyncSession | null;
+}
 /** Why the document changed. */
 export type DocumentChangeReason = 
 /** File ▸ Open, drag-and-drop, `document.open`: a file the user chose. */
