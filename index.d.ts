@@ -1327,6 +1327,80 @@ export interface TextTrigger {
 	/** 1-based line the `Trigger(` header starts on. */
 	line: number;
 }
+/** Every kind of thing a condition or action can refer to. */
+export type TriggerRefKind = 
+/** A switch; `id` is its 0-based number. */
+"switch"
+/** A death counter; `id` is the unit id, `players` the slots whose cell it is. */
+ | "deaths"
+/** A death counter out of range — an EUD read or write; `address` is the dword it reaches, `id` the unit value as written. */
+ | "memory"
+/** A location; `id` is its 0-based slot (63 is Anywhere). */
+ | "location"
+/** The countdown timer; `id` is 0. */
+ | "timer"
+/** A player's ore or gas; `id` is the `ResourceType`. */
+ | "resources"
+/** A player's score; `id` is the `ScoreType`. */
+ | "score"
+/** Units of a type; `id` is the unit id (a class id for *Any unit*, *Men*, …). */
+ | "units"
+/** Victory, Defeat or Draw; `id` is the action type, `players` the trigger's owners. */
+ | "outcome"
+/** A string of the map's string table; `id` is the 1-based string index. */
+ | "string"
+/** A sound; `id` is the string index of its file name. */
+ | "wav"
+/** A Run AI Script code (four characters as a little-endian u32). */
+ | "aiScript"
+/** A Create Unit with Properties slot, 0-based. */
+ | "cuwp";
+/**
+ * `read`: a condition tests it. `write`: an action changes it. `use`: an action names it
+ * without changing it — the location units appear at, the text a message shows.
+ */
+export type TriggerRefAccess = "read" | "write" | "use";
+export interface TriggerRef {
+	kind: TriggerRefKind;
+	access: TriggerRefAccess;
+	/** Whether a condition or an action refers to it. */
+	part: "condition" | "action";
+	/** The condition's or action's position in the trigger. */
+	slot: number;
+	/** The condition or action type. */
+	type: number;
+	id: number;
+	/**
+	 * The 0-based player slots it is about, for the kinds that belong to a player
+	 * (`deaths`, `resources`, `score`, `units`, `outcome`); empty for the rest, and for a
+	 * condition such as *Command the Most* that compares every player.
+	 */
+	players: number[];
+	/** The player group as the record stores it, where the record has one. */
+	group?: number;
+	/**
+	 * The group resolves only while the game runs (*Foes*, *Allies*, *Neutral Players*,
+	 * *Non Allied Victory Players*), so `players` is every slot it could name.
+	 */
+	approximate?: boolean;
+	/** `memory`: the address reached (rounded down to a dword). */
+	address?: number;
+	/** `memory`: the bits a masked record reaches (its `location` field), when the record is masked. */
+	mask?: number;
+	/** The condition or action is switched off (its Disabled flag); the game skips it. */
+	disabled?: boolean;
+}
+export interface TriggerRefs {
+	/** The trigger's index in the list. */
+	index: number;
+	/** The 0-based slots the trigger runs for. */
+	owners: number[];
+	/** The player groups ticked in the trigger, as stored. */
+	groups: number[];
+	/** Set by the Disabled flag, or no player owns it: the game never runs it. */
+	inert: boolean;
+	refs: TriggerRef[];
+}
 export type IssueLevel = "error" | "warn" | "info";
 export type IssueTarget = {
 	kind: "location";
@@ -3162,6 +3236,39 @@ export interface TriggersApi {
 		switches: number[];
 	};
 	/**
+	 * What each trigger reads, writes and names — TRIG when `list` is omitted, one entry per
+	 * trigger in list order. A condition *reads* (a switch, a death counter, the timer, a
+	 * player's ore, units at a location); an action *writes* (Set Switch, Set Deaths, Create
+	 * Unit, Move Location's target, Victory) or *uses* something without changing it (the
+	 * location units appear at, the text a message shows, a sound). Player groups are
+	 * resolved to slots against the map's forces, *Current Player* as the trigger's owners;
+	 * a Deaths record past the counters is a `memory` reference with its address.
+	 *
+	 * What a plugin needs to draw how triggers depend on each other, find a switch that is
+	 * set and never tested, or answer "which triggers can end the game". With `briefing`,
+	 * MBRF, where only strings and sounds are referred to.
+	 *
+	 * @example
+	 * // Switches something tests that nothing ever sets.
+	 * const refs = api.triggers.references().flatMap((t) => t.refs).filter((r) => r.kind === "switch");
+	 * const set = new Set(refs.filter((r) => r.access === "write").map((r) => r.id));
+	 * const never = [...new Set(refs.filter((r) => r.access === "read" && !set.has(r.id)).map((r) => r.id))];
+	 */
+	references(list?: TriggerRecord[], options?: {
+		briefing?: boolean;
+	}): TriggerRefs[];
+	/**
+	 * The 0-based player slots a player group names on the open map: a slot itself, the
+	 * members of a force, players 1–8 for *All Players*, and for *Current Player* the slots
+	 * of `owners` (the groups a trigger is ticked for). `approximate` when the group is only
+	 * settled while the game runs (*Foes*, *Allies*, *Neutral Players*, *Non Allied Victory
+	 * Players*); `players` is then every slot it could name.
+	 */
+	resolvePlayers(group: number, owners?: number[]): {
+		players: number[];
+		approximate: boolean;
+	};
+	/**
 	 * Tell the editor that a run of the trigger list is generated by this plugin. The
 	 * Trigger Editor badges those rows, locks them and offers the plugin's own editor in
 	 * place of the form; the Text Trigger Editor fences them in comments; Import Triggers
@@ -3289,6 +3396,12 @@ export type GoTo = {
 } | {
 	kind: "location";
 	index: number;
+}
+/** Opens the Trigger Editor (or, with `briefing`, the Mission Briefing) on that trigger. */
+ | {
+	kind: "trigger";
+	index: number;
+	briefing?: boolean;
 };
 /**
  * The map view: where the viewport is looking, how far in, and what it draws over the
@@ -4287,7 +4400,12 @@ export interface MapButtonHandle {
  * not yet applied to the map — so a slot's button can fill it in and leave OK to them.
  *
  * - `mapProperties`: `name`, `description`.
- * - `triggerEditor`, `stringEditor`, `playerSettings`, `missionBriefing`: no fields, a slot only.
+ * - `triggerEditor`, `missionBriefing`: `selected`, the selected row's index in the list
+ *   as text (`""` for none). Setting it selects that row. The index is into the dialog's
+ *   working copy, which matches `triggers.list()` until the person inserts or removes rows.
+ *   And `modified`, `"1"` while that working copy has changes not yet applied (read only):
+ *   `close()` discards them, so ask before closing when it is set.
+ * - `stringEditor`, `playerSettings`: no fields, a slot only.
  *
  * A plugin's own dialog can offer a slot too (`DialogSpec.slot`), under an id of its
  * choosing — `"trigedit.text"` is the Text Trigger Editor's, lending `text` with
