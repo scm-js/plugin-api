@@ -1209,7 +1209,7 @@ export interface StackedLine {
 	pieces: number;
 }
 /** Every built-in dialog, by the id `openDialogAtom` takes; `DialogHost` maps each to its component. */
-export type DialogId = "newMap" | "openMap" | "saveAs" | "exportImage" | "mapProperties" | "resizeMap" | "mapRevision" | "playerSettings" | "forceSettings" | "playerColors" | "unitSettings" | "upgradeSettings" | "techSettings" | "stringEditor" | "soundEditor" | "switches" | "locationList" | "unitProperties" | "locationProperties" | "spriteProperties" | "triggerEditor" | "missionBriefing" | "cuwpEditor" | "replaceTerrain" | "autoStarts" | "testMap" | "symmetry" | "gridSettings" | "preferences" | "shortcuts" | "validateMap" | "statistics" | "importTriggers" | "exportTriggers" | "importStrings" | "exportStrings" | "find" | "about" | "confirmClose" | "plugins" | "confirmPlugin" | "pluginDialog" | "gameData" | "update";
+export type DialogId = "newMap" | "openMap" | "saveAs" | "exportImage" | "mapProperties" | "resizeMap" | "mapRevision" | "playerSettings" | "forceSettings" | "playerColors" | "unitSettings" | "upgradeSettings" | "techSettings" | "stringEditor" | "soundEditor" | "switches" | "locationList" | "unitProperties" | "locationProperties" | "spriteProperties" | "triggerEditor" | "missionBriefing" | "cuwpEditor" | "replaceTerrain" | "autoStarts" | "testMap" | "symmetry" | "gridSettings" | "preferences" | "shortcuts" | "validateMap" | "statistics" | "importTriggers" | "exportTriggers" | "importStrings" | "exportStrings" | "find" | "about" | "confirmClose" | "recovery" | "previousVersions" | "plugins" | "confirmPlugin" | "pluginDialog" | "gameData" | "update";
 export interface MapImageOptions {
 	/** Output pixels per map tile. 32 matches the game's art 1:1; 1 is a minimap. */
 	pixelsPerTile: number;
@@ -1992,11 +1992,25 @@ export interface Preferences {
 	 * What the Save dialog starts from: the options the file was opened with
 	 * (`"asOpened"`, the default), or one of its presets. `compression` is for a map with
 	 * no origin — new, or opened from a bare .chk — where there is nothing to follow;
-	 * `"asOpened"` there means StarEdit's PKWARE.
+	 * `"asOpened"` there means StarEdit's PKWARE. `backup` keeps the file a save writes
+	 * over: `<name>.bak` beside it in the desktop app, the browser's storage otherwise
+	 * (`services/previousVersions.ts`).
 	 */
 	save: {
 		start: "asOpened" | "everything" | "smallest";
 		compression: "asOpened" | ArchiveCompression;
+		backup: boolean;
+	};
+	/**
+	 * Recovery copies (`hooks/useRecovery.ts`): while a map has unsaved changes, a copy of
+	 * it is kept in the browser's storage every `minutes` and when the editor goes to the
+	 * background, and dropped when the map is saved or closed. What a session that ended
+	 * without saving left behind is offered back at the next start. Off stops the copies
+	 * and drops this session's; copies left by earlier sessions are still offered.
+	 */
+	recovery: {
+		enabled: boolean;
+		minutes: number;
 	};
 	/** How many edits Undo keeps per map (SCMDraft keeps 200). */
 	undoLevels: number;
@@ -3579,6 +3593,13 @@ export interface GameDataApi {
 	select(id: string): Promise<GameDataSource>;
 	/** Remove a data set's copy (never the game's bundled files). True when there was one. */
 	remove(id: string): Promise<boolean>;
+	/**
+	 * One file of the data set in use, by its path in the extracted copy: the archive path in
+	 * lower case with forward slashes (`arr/units.dat`, `tileset/jungle.cv5`,
+	 * `unit/zerg/drone.grp`). `tileset/manifest.json` and `unit/manifest.json` list what was
+	 * extracted. Null when the copy has no such file, or there is no game data.
+	 */
+	read(path: string): Promise<Uint8Array | null>;
 }
 /**
  * The constants a plugin needs to *write* a record rather than read one: the bit masks in
