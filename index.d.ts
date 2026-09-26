@@ -3324,7 +3324,12 @@ export interface TriggerClaimRange {
  * in it — by a hash of the records, say — or null when the records are not there.
  */
 export interface TriggerClaimSpec {
-	/** What generated the run, in words, as a sentence would use it: `"the trigger script"`. */
+	/**
+	 * What generated the run, in words, as a sentence would use it: `"the trigger script"`.
+	 * `label`, `badge` and `openLabel` are given in English and shown through the plugin's
+	 * registered catalogues, so they follow a language change; `api.triggers.claims` hands
+	 * back the English.
+	 */
 	label: string;
 	/** The word on the badge the trigger list shows on each row; the plugin's id by default. */
 	badge?: string;
@@ -4605,7 +4610,7 @@ export type OverlayAbove =
  * it goes away with the plugin.
  */
 export interface OverlaySpec {
-	/** Shown in View ▸ Overlays and the Layers panel. Unique per plugin. */
+	/** Shown in View ▸ Overlays and the Layers panel. Unique per plugin. In English, like a menu label: shown through the plugin's registered catalogues. */
 	name: string;
 	/** Start visible; true by default. What the user last set for this name wins for the session. */
 	visible?: boolean;
@@ -5105,6 +5110,11 @@ export type TopMenu = "File" | "Edit" | "View" | "Layer" | "Scenario" | "Trigger
  */
 export type MenuPath = TopMenu | `${TopMenu}/${string}` | (string & {});
 export interface MenuItemSpec {
+	/**
+	 * In English, like the path's segments: it is the item's identity (another plugin's
+	 * `after` names it), and the menu shows it translated through the catalogues the plugin
+	 * registered with `i18n.register`, so it follows a language change.
+	 */
 	label: string;
 	/** Display only — bind the key with `hotkeys.add`. */
 	shortcut?: string;
@@ -5166,6 +5176,10 @@ export interface ContextMenuContext {
 	markedArea: Rect | null;
 }
 export interface ContextItemSpec {
+	/**
+	 * A fixed label is given in English and shown through the plugin's registered catalogues;
+	 * a function is called when the menu opens, so it translates with `i18n.t` itself.
+	 */
 	label: string | ((ctx: ContextMenuContext) => string);
 	enabled?: (ctx: ContextMenuContext) => boolean;
 	visible?: (ctx: ContextMenuContext) => boolean;
