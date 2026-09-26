@@ -2029,6 +2029,8 @@ export interface StringImport {
 export type Locale = "en" | "ko";
 /** `"auto"` follows the browser (or the desktop app's system language). */
 export type LanguagePreference = "auto" | Locale;
+/** What `Preferences.hotkeys` holds: the commands the user changed, each with its whole list (`[]` = no keys). */
+export type HotkeyOverrides = Record<string, string[]>;
 export interface Preferences {
 	/** The editor's own language: `"auto"` follows the browser's (the system's, in the desktop app), else one of `LOCALES`. Applied live. */
 	language: LanguagePreference;
@@ -2155,6 +2157,28 @@ export interface Preferences {
 	plugins: {
 		updates: PluginUpdateMode;
 	};
+	/**
+	 * Preferences ▸ Hotkeys: the commands whose keys the user changed, by command id
+	 * (`editor/commands.ts`), each with its whole list — `[]` leaves it with none. A
+	 * command not here has the keys it ships with.
+	 */
+	hotkeys: HotkeyOverrides;
+	/**
+	 * Which cells the status bar shows (Preferences ▸ View). The message, the symmetry badge
+	 * while a mode is on, and the plugins' items always show.
+	 */
+	statusBar: StatusBarCells;
+}
+/** See `Preferences.statusBar`, in the order the bar draws them. */
+export interface StatusBarCells {
+	tile: boolean;
+	pixel: boolean;
+	tileId: boolean;
+	size: boolean;
+	tileset: boolean;
+	layer: boolean;
+	zoom: boolean;
+	revision: boolean;
 }
 /** See `Preferences.plugins.updates`. */
 export type PluginUpdateMode = "notify" | "manual" | "auto";
