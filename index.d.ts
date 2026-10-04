@@ -297,6 +297,14 @@ export interface TriggerRecord {
 	/** The game's bookkeeping byte (offset 2399); StarEdit writes 0. */
 	currentAction: number;
 }
+/** A trigger that is only read: nothing on it, its conditions or its actions may be written. */
+export interface ReadonlyTrigger {
+	readonly conditions: readonly Readonly<ConditionRecord>[];
+	readonly actions: readonly Readonly<ActionRecord>[];
+	readonly flags: number;
+	readonly players: readonly number[];
+	readonly currentAction: number;
+}
 declare const ConditionType: {
 	readonly None: 0;
 	readonly CountdownTimer: 1;
@@ -2193,6 +2201,29 @@ export declare const PLUGIN_API_VERSION = 1;
 export interface Disposable {
 	dispose(): void;
 }
+export type Primitive = string | number | boolean | bigint | symbol | null | undefined;
+/** A typed array without the calls that write to it, and with a read-only index. */
+export type ReadonlyTyped<T> = {
+	readonly [K in keyof T as K extends "set" | "fill" | "copyWithin" | "reverse" | "sort" ? never : K]: T[K];
+};
+/**
+ * `T` with every property, element and entry read-only, all the way down: arrays become
+ * `readonly` arrays, a `Set` or `Map` its read-only form, a typed array `ReadonlyTyped`.
+ */
+export type DeepReadonly<T> = T extends Primitive | ((...args: never[]) => unknown) ? T : T extends Uint8Array | Uint16Array | Uint32Array ? ReadonlyTyped<T> : T extends Set<infer V> ? ReadonlySet<DeepReadonly<V>> : T extends Map<infer K, infer V> ? ReadonlyMap<K, DeepReadonly<V>> : T extends readonly (infer V)[] ? readonly DeepReadonly<V>[] : {
+	readonly [K in keyof T]: DeepReadonly<T[K]>;
+};
+/**
+ * The open map as a plugin sees it: the editor's own live object, typed so that writing
+ * to it does not compile. A direct write would skip undo, the file's dirty tracking, the
+ * repaint and a shared map's other editors — every change goes through `document.edit`,
+ * `document.update` or `document.sections`.
+ *
+ * The object is live, so a read after an edit sees the edit; copy what you need to keep
+ * (`[...scn.units]`, `scn.tiles.slice()`). A copy of a record is an ordinary one:
+ * `{ ...scn.units[0], x: 64 }` is a `UnitRecord` to hand to `tx.addUnits`.
+ */
+export type ReadonlyScenario = DeepReadonly<Scenario>;
 /**
  * A transaction builder's return type: whatever it likes, so long as it is not a promise.
  *
@@ -2586,10 +2617,10 @@ export interface DocumentApi {
 	isOpen(): boolean;
 	info(): DocumentInfo | null;
 	/**
-	 * The live scenario, for reading. Writing to it directly bypasses undo, dirty
-	 * tracking and repaints — use `edit`.
+	 * The live scenario, for reading — see `ReadonlyScenario`. To change the map, use
+	 * `edit`, `update` or `sections`.
 	 */
-	scenario(): Scenario | null;
+	scenario(): ReadonlyScenario | null;
 	/**
 	 * Run `build` against a transaction and record what it did as one undo entry.
 	 * Operations apply as they are called, so later ones see earlier ones' results.
@@ -2809,7 +2840,7 @@ export interface SectionsApi {
 	 * are left as they are and missing from `rebuilt`; omit `names` for every modelled
 	 * section the map has a model for.
 	 */
-	rebuild(names?: string[]): RebuildResult;
+	rebuild(names?: readonly string[]): RebuildResult;
 }
 /** What `tx.rebuildIsom` did. */
 export interface IsomRebuildResult {
@@ -2825,7 +2856,7 @@ export interface IsomRebuildResult {
 /** Cells for the bulk terrain operations: a tile rect, or cell indices (`y * width + x`). */
 export type Cells = Rect | Iterable<number>;
 export interface EditTransaction {
-	readonly scenario: Scenario;
+	readonly scenario: ReadonlyScenario;
 	readonly width: number;
 	readonly height: number;
 	/** MTXM (what the game draws) at a cell. */
@@ -2859,9 +2890,9 @@ export interface EditTransaction {
 	rebuildIsom(): IsomRebuildResult | null;
 	/** A StarEdit-style unit record (fresh serial, valid/used masks) centred on map pixels. */
 	makeUnit(unitId: number, owner: number, x: number, y: number): UnitRecord;
-	addUnits(records: UnitRecord[]): number[];
-	removeUnits(indices: number[]): number;
-	updateUnits(indices: number[], patch: (u: UnitRecord) => Partial<UnitRecord>): number;
+	addUnits(records: readonly UnitRecord[]): number[];
+	removeUnits(indices: readonly number[]): number;
+	updateUnits(indices: readonly number[], patch: (u: UnitRecord) => Partial<UnitRecord>): number;
 	/**
 	 * A unit the way the Units palette places one: a building snaps its placement box to
 	 * the tile grid (when the palette's *Snap to grid* is on), anything else lands where
@@ -2875,8 +2906,8 @@ export interface EditTransaction {
 		flipped?: boolean;
 		disabled?: boolean;
 	}): SpriteRecord;
-	addSprites(records: SpriteRecord[]): number[];
-	removeSprites(indices: number[]): number;
+	addSprites(records: readonly SpriteRecord[]): number[];
+	removeSprites(indices: readonly number[]): number;
 	/** `makeSprite` + `addSprites` in one, kept on the map; returns the record's index. */
 	placeSprite(kind: SpriteKind, id: number, owner: number, x: number, y: number, opts?: {
 		flipped?: boolean;
@@ -2884,14 +2915,14 @@ export interface EditTransaction {
 	}): number;
 	/** Stamp a doodad (a `dddata.bin` id) at a tile; returns its record index, or -1 when unknown or off the map. */
 	placeDoodad(doodadId: number, tx: number, ty: number, owner?: number): number;
-	removeDoodads(indices: number[]): number;
+	removeDoodads(indices: readonly number[]): number;
 	/**
 	 * Make doodads plain terrain: their records go, their tiles stay (in TILE as well as
 	 * MTXM, so the cells are ground to every tool from here on) and an overlay stays as an
 	 * ordinary sprite. The way to touch up a ramp or a cliff piece tile by tile.
 	 * Returns records converted.
 	 */
-	convertDoodads(indices: number[]): number;
+	convertDoodads(indices: readonly number[]): number;
 	/**
 	 * Stamp a `Clip` with its top-left tile at (tx, ty) inside this transaction — the
 	 * clipboard's paste without the clipboard: the clip can come from anywhere (`clipboard.copy`,
@@ -2905,7 +2936,7 @@ export interface EditTransaction {
 	/** A location in the lowest free slot (pixel bounds); returns the slot, or -1 when the table is full. */
 	addLocation(bounds: Bounds, name?: string, elevationFlags?: number): number;
 	editLocation(index: number, patch: LocationPatch): boolean;
-	removeLocations(indices: number[]): number;
+	removeLocations(indices: readonly number[]): number;
 	/** Set (`"fog"`) or clear the `players` bits (bit n = player n + 1) over cells; creates MASK on first use. */
 	setFog(cells: Cells, players: number, mode: FogMode): number;
 	/**
@@ -2946,7 +2977,7 @@ export interface EditTransaction {
 		y: number;
 	}[];
 	/** Shift units by a pixel delta; buildings re-snap to the grid when `snap` (the palette's option when omitted). Returns records changed. */
-	moveUnits(indices: number[], dx: number, dy: number, snap?: boolean): number;
+	moveUnits(indices: readonly number[], dx: number, dy: number, snap?: boolean): number;
 	/**
 	 * Tools ▸ Auto-place Start Locations: one per player on a ring or in the corners, each
 	 * moved to the nearest spot the placement checks accept; `replace` removes the existing
@@ -2958,11 +2989,11 @@ export interface EditTransaction {
 		margin?: number;
 		replace?: boolean;
 	}): StartPlacementResult;
-	updateSprites(indices: number[], patch: (r: SpriteRecord) => Partial<SpriteRecord>): number;
+	updateSprites(indices: readonly number[], patch: (r: SpriteRecord) => Partial<SpriteRecord>): number;
 	/** Shift sprites by a pixel delta, clamped to the map. Returns records changed. */
-	moveSprites(indices: number[], dx: number, dy: number): number;
+	moveSprites(indices: readonly number[], dx: number, dy: number): number;
 	/** Change a doodad's owner or disabled flag (its tiles stay). Returns records changed. */
-	updateDoodads(indices: number[], patch: {
+	updateDoodads(indices: readonly number[], patch: {
 		owner?: number;
 		disabled?: number;
 	}): number;
@@ -2997,7 +3028,7 @@ export interface TriggerListUpdate {
 	add(trigger: TriggerRecord, at?: number): number;
 	/** Replace one record; false when there is none at `index`. */
 	replace(index: number, trigger: TriggerRecord): boolean;
-	remove(indices: number[]): number;
+	remove(indices: readonly number[]): number;
 	move(from: number, to: number): boolean;
 	/**
 	 * Parse the text format (`triggers.text.print`'s inverse) and append the result, or
@@ -3042,7 +3073,7 @@ export interface SwitchesUpdate {
  * the end marks the map modified and tells the chrome to re-read.
  */
 export interface UpdateTransaction {
-	readonly scenario: Scenario;
+	readonly scenario: ReadonlyScenario;
 	/** TRIG. */
 	readonly triggers: TriggerListUpdate;
 	/** MBRF, the mission briefing's own list of the same records. */
@@ -3180,7 +3211,7 @@ export interface TriggerDefsApi {
 }
 /** Printing and parsing the text trigger format (File ▸ Import / Export ▸ Triggers). */
 export interface TriggerTextApi {
-	print(triggers: TriggerRecord[], options?: {
+	print(triggers: readonly ReadonlyTrigger[], options?: {
 		briefing?: boolean;
 	}): string;
 	/**
@@ -3191,7 +3222,7 @@ export interface TriggerTextApi {
 		briefing?: boolean;
 	}): TextTrigger[];
 	/** One trigger as its `Trigger(…)` block. */
-	one(trigger: TriggerRecord, options?: {
+	one(trigger: ReadonlyTrigger, options?: {
 		briefing?: boolean;
 	}): string;
 }
@@ -3213,22 +3244,22 @@ export interface TriggersApi {
 	readonly defs: TriggerDefsApi;
 	readonly text: TriggerTextApi;
 	/** An empty trigger owned by the given player groups (All Players by default). */
-	newTrigger(players?: number[]): TriggerRecord;
+	newTrigger(players?: readonly number[]): TriggerRecord;
 	/** A condition of a type, with StarEdit's defaults for its arguments. */
 	newCondition(type: number): ConditionRecord;
 	newAction(type: number, briefing?: boolean): ActionRecord;
-	isPreserved(trigger: TriggerRecord): boolean;
-	setPreserved(trigger: TriggerRecord, on: boolean): TriggerRecord;
+	isPreserved(trigger: ReadonlyTrigger): boolean;
+	setPreserved(trigger: ReadonlyTrigger, on: boolean): TriggerRecord;
 	/** The indices of the triggers any of these player groups own. */
-	triggersFor(list: TriggerRecord[], groups: number[]): number[];
+	triggersFor(list: readonly ReadonlyTrigger[], groups: readonly number[]): number[];
 	/** The three lines the trigger list shows: players, conditions, actions. */
-	summarize(trigger: TriggerRecord, briefing?: boolean): {
+	summarize(trigger: ReadonlyTrigger, briefing?: boolean): {
 		players: string;
 		conditions: string;
 		actions: string;
 	};
 	/** A trigger's `Comment` action text, when it has one. */
-	comment(trigger: TriggerRecord): string | null;
+	comment(trigger: ReadonlyTrigger): string | null;
 	/**
 	 * EUD: the player value that reaches a memory address through the deaths table
 	 * (`(address − consts.triggers.deathsTable) / 4`, the address rounded down to a dword)
@@ -3244,7 +3275,7 @@ export interface TriggersApi {
 	 * finds its run by (`TriggerClaimSpec.locate`), and what an editor keeps a selection
 	 * by across a list that changed under it.
 	 */
-	fingerprint(trigger: TriggerRecord): string;
+	fingerprint(trigger: ReadonlyTrigger): string;
 	/**
 	 * Every death-counter cell (`[player, unit]`) and switch the triggers read or write —
 	 * TRIG when `list` is omitted. A player group counts as every slot it can resolve to
@@ -3252,7 +3283,7 @@ export interface TriggersApi {
 	 * counts for nothing, and an EUD player is an address, not a cell. What a plugin that
 	 * allocates counters or switches of its own must keep clear of.
 	 */
-	usage(list?: TriggerRecord[]): {
+	usage(list?: readonly ReadonlyTrigger[]): {
 		cells: [
 			player: number,
 			unit: number
@@ -3278,7 +3309,7 @@ export interface TriggersApi {
 	 * const set = new Set(refs.filter((r) => r.access === "write").map((r) => r.id));
 	 * const never = [...new Set(refs.filter((r) => r.access === "read" && !set.has(r.id)).map((r) => r.id))];
 	 */
-	references(list?: TriggerRecord[], options?: {
+	references(list?: readonly ReadonlyTrigger[], options?: {
 		briefing?: boolean;
 	}): TriggerRefs[];
 	/**
@@ -3288,8 +3319,8 @@ export interface TriggersApi {
 	 * settled while the game runs (*Foes*, *Allies*, *Neutral Players*, *Non Allied Victory
 	 * Players*); `players` is then every slot it could name.
 	 */
-	resolvePlayers(group: number, owners?: number[]): {
-		players: number[];
+	resolvePlayers(group: number, owners?: readonly number[]): {
+		players: readonly number[];
 		approximate: boolean;
 	};
 	/**
@@ -3305,7 +3336,7 @@ export interface TriggersApi {
 	 * run first — what an editor of the trigger list needs to fence or lock the generated
 	 * runs. A claim whose `locate` finds nothing, or throws, is left out.
 	 */
-	claims(list?: TriggerRecord[]): TriggerClaimRange[];
+	claims(list?: readonly ReadonlyTrigger[]): TriggerClaimRange[];
 }
 /** One claimed run as `triggers.claims` located it. */
 export interface TriggerClaimRange {
@@ -3334,14 +3365,14 @@ export interface TriggerClaimSpec {
 	/** The word on the badge the trigger list shows on each row; the plugin's id by default. */
 	badge?: string;
 	/** Where the run sits in `list`, or null when it is not there (edited by hand, or gone). */
-	locate(list: TriggerRecord[]): {
+	locate(list: readonly ReadonlyTrigger[]): {
 		start: number;
 		count: number;
 	} | null;
 	/** A sentence about one trigger of the run (its index in `list`), shown in place of the editor's form. */
-	describe?(index: number, list: TriggerRecord[]): string;
+	describe?(index: number, list: readonly ReadonlyTrigger[]): string;
 	/** Open the plugin's own editor on that trigger — the button under the sentence. */
-	open?(index: number, list: TriggerRecord[]): void;
+	open?(index: number, list: readonly ReadonlyTrigger[]): void;
 	/** That button's label; `Open <plugin name>` by default. */
 	openLabel?: string;
 }
@@ -3997,13 +4028,13 @@ export interface SelectionApi {
 	markedArea(): Rect | null;
 	markArea(rect: Rect | null): void;
 	units(): number[];
-	setUnits(indices: number[]): void;
+	setUnits(indices: readonly number[]): void;
 	sprites(): number[];
-	setSprites(indices: number[]): void;
+	setSprites(indices: readonly number[]): void;
 	doodads(): number[];
-	setDoodads(indices: number[]): void;
+	setDoodads(indices: readonly number[]): void;
 	locations(): number[];
-	setLocations(indices: number[]): void;
+	setLocations(indices: readonly number[]): void;
 	layer(): EditorLayer;
 	setLayer(layer: EditorLayer): void;
 	/** Layers the Layers panel has locked: their tools refuse to change the map. */
@@ -4073,7 +4104,7 @@ export interface ClipboardApi {
  */
 export interface ExchangeApi {
 	/** Raw 2400-byte TRIG records, SCMDraft's `.trg`; string indices are the map's own. */
-	encodeTrg(triggers: TriggerRecord[]): Uint8Array;
+	encodeTrg(triggers: readonly ReadonlyTrigger[]): Uint8Array;
 	decodeTrg(bytes: Uint8Array): TriggerRecord[];
 	/** The whole string table as `index<TAB>text` lines, control bytes as `<XX>`. */
 	formatStrings(): string;
