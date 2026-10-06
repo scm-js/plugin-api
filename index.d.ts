@@ -979,6 +979,127 @@ export interface LocationPatch {
 	bottom?: number;
 	elevationFlags?: number;
 }
+export interface WireListChange<T> {
+	index: number;
+	before: T | null;
+	after: T | null;
+}
+export interface WireLocationChange {
+	index: number;
+	after: LocationRecord;
+	/** The name as text (`after.nameIndex` is resolved again where it lands); null for none. */
+	name: string | null;
+	/** The slot was empty before: a new location, which moves to a free slot if someone else took this one. */
+	created: boolean;
+}
+/**
+ * One undo step's worth of terrain and objects. The grids are flat number lists: terrain
+ * `[at, mtxm, tile, …]`, the others `[at, value, …]`. `reverse` marks the undo of an edit:
+ * its parts go in the reverse of the usual order, as undo walks them.
+ */
+export interface SyncEditOp {
+	kind: "edit";
+	label: string;
+	/** The map size the cells index; a grid part is skipped on a map of another size. */
+	width: number;
+	height: number;
+	reverse?: boolean;
+	terrain?: number[];
+	isom?: number[];
+	doodadTiles?: number[];
+	fog?: number[];
+	/** The whole ISOM lattice (base64 of the u16 cells) the edit gave the map, or null for taking it away. */
+	isomWhole?: string | null;
+	maskWhole?: string | null;
+	units?: WireListChange<UnitRecord>[];
+	doodads?: WireListChange<DoodadRecord>[];
+	sprites?: WireListChange<SpriteRecord>[];
+	locations?: WireLocationChange[];
+}
+declare const SYNC_FIELDS: readonly [
+	"type",
+	"fileVersion",
+	"nameIndex",
+	"descriptionIndex",
+	"playerTypes",
+	"editorPlayerTypes",
+	"playerRaces",
+	"playerColors",
+	"playerRgb",
+	"forces",
+	"unitSettings",
+	"unitAvailability",
+	"upgradeSettings",
+	"upgradeRestrictions",
+	"techSettings",
+	"techRestrictions",
+	"wavs",
+	"cuwp",
+	"cuwpUsed",
+	"triggers",
+	"briefing",
+	"switchNames"
+];
+export type SyncField = (typeof SYNC_FIELDS)[number];
+export interface SyncFieldsOp {
+	kind: "fields";
+	/** Each changed field's new value, packed (`pack`). */
+	set: Partial<Record<SyncField, unknown>>;
+	/** String slots that changed: `[index, before, after]`. */
+	strings?: [
+		number,
+		string | null,
+		string | null
+	][];
+	/** The table's length afterwards (trailing blank slots are dropped). */
+	stringsLength?: number;
+	/** The table's width and text encoding, when they changed. */
+	stringsFormat?: {
+		extended: boolean;
+		encoding: TextEncoding;
+	};
+}
+export interface SyncExtrasOp {
+	kind: "extras";
+	/** `[member name, base64 bytes]`, or null bytes for a member taken out. */
+	set: [
+		string,
+		string | null
+	][];
+}
+export interface SyncResetOp {
+	kind: "reset";
+	label: string;
+	/** The whole scenario, base64. */
+	chk: string;
+}
+export type SyncOp = SyncEditOp | SyncFieldsOp | SyncExtrasOp | SyncResetOp;
+export type ListField = "triggers" | "briefing";
+export type ValueField = Exclude<SyncField, ListField>;
+export interface StringsFormat {
+	extended: boolean;
+	encoding: TextEncoding;
+}
+export interface Change<T> {
+	before: T;
+	after: T;
+}
+/** What one dialog commit changed, each part with both of its sides. */
+export interface TablesEdit {
+	/** The changed tables as JSON text (`pack`ed). */
+	values?: Partial<Record<ValueField, Change<string>>>;
+	lists?: Partial<Record<ListField, Change<TriggerRecord[]>>>;
+	/** String slots that changed: `[index, before, after]`. */
+	strings?: [
+		number,
+		string | null,
+		string | null
+	][];
+	stringsLength?: Change<number>;
+	stringsFormat?: Change<StringsFormat>;
+	/** The archive's files, when the commit changed them too (the Sound Editor). */
+	extras?: Change<Map<string, Uint8Array>>;
+}
 /** The change lists of one edit; `HistoryEntry` adds the label. */
 export interface HistoryEdit {
 	changes: TileChange[];
@@ -1017,10 +1138,16 @@ export interface HistoryEdit {
 	 * on such a map). Undo removes the section again.
 	 */
 	createdMask?: Uint8Array;
+	/**
+	 * What a dialog wrote — settings, triggers, the briefing, strings (editor/tableHistory.ts).
+	 * An entry with this part has no other: `applyEntry` leaves it alone, and the undo and
+	 * redo atoms apply it with `applyTables`.
+	 */
+	tables?: TablesEdit;
 }
 /**
  * Why the map changed: an edit recorded in the history, an undo or redo of one, a dialog
- * writing its tables (settings, triggers, strings — outside the history), a change to the
+ * writing its tables (settings, triggers, strings), a change to the
  * whole document (resize, tileset change, raw section edit), or other people's edits on a
  * shared map.
  */
@@ -1217,7 +1344,7 @@ export interface StackedLine {
 	pieces: number;
 }
 /** Every built-in dialog, by the id `openDialogAtom` takes; `DialogHost` maps each to its component. */
-export type DialogId = "newMap" | "openMap" | "saveAs" | "exportImage" | "mapProperties" | "resizeMap" | "mapRevision" | "playerSettings" | "forceSettings" | "playerColors" | "unitSettings" | "upgradeSettings" | "techSettings" | "stringEditor" | "soundEditor" | "switches" | "locationList" | "unitProperties" | "locationProperties" | "spriteProperties" | "triggerEditor" | "missionBriefing" | "cuwpEditor" | "replaceTerrain" | "autoStarts" | "testMap" | "symmetry" | "gridSettings" | "preferences" | "shortcuts" | "validateMap" | "statistics" | "importTriggers" | "exportTriggers" | "importStrings" | "exportStrings" | "find" | "about" | "confirmClose" | "recovery" | "previousVersions" | "plugins" | "confirmPlugin" | "pluginDialog" | "gameData" | "update";
+export type DialogId = "newMap" | "openMap" | "saveAs" | "exportImage" | "mapProperties" | "resizeMap" | "mapRevision" | "playerSettings" | "forceSettings" | "playerColors" | "unitSettings" | "upgradeSettings" | "techSettings" | "stringEditor" | "soundEditor" | "switches" | "locationList" | "unitProperties" | "locationProperties" | "spriteProperties" | "triggerEditor" | "missionBriefing" | "cuwpEditor" | "replaceTerrain" | "autoStarts" | "testMap" | "symmetry" | "gridSettings" | "preferences" | "shortcuts" | "validateMap" | "statistics" | "importTriggers" | "exportTriggers" | "importStrings" | "exportStrings" | "find" | "about" | "confirmClose" | "recovery" | "previousVersions" | "plugins" | "confirmPlugin" | "pluginDialog" | "gameData" | "update" | "whatsNew";
 export interface MapImageOptions {
 	/** Output pixels per map tile. 32 matches the game's art 1:1; 1 is a minimap. */
 	pixelsPerTile: number;
@@ -1854,101 +1981,6 @@ export interface ChangeTilesetResult {
 	spritesDropped: number;
 	refilled: boolean;
 }
-export interface WireListChange<T> {
-	index: number;
-	before: T | null;
-	after: T | null;
-}
-export interface WireLocationChange {
-	index: number;
-	after: LocationRecord;
-	/** The name as text (`after.nameIndex` is resolved again where it lands); null for none. */
-	name: string | null;
-	/** The slot was empty before: a new location, which moves to a free slot if someone else took this one. */
-	created: boolean;
-}
-/**
- * One undo step's worth of terrain and objects. The grids are flat number lists: terrain
- * `[at, mtxm, tile, …]`, the others `[at, value, …]`. `reverse` marks the undo of an edit:
- * its parts go in the reverse of the usual order, as undo walks them.
- */
-export interface SyncEditOp {
-	kind: "edit";
-	label: string;
-	/** The map size the cells index; a grid part is skipped on a map of another size. */
-	width: number;
-	height: number;
-	reverse?: boolean;
-	terrain?: number[];
-	isom?: number[];
-	doodadTiles?: number[];
-	fog?: number[];
-	/** The whole ISOM lattice (base64 of the u16 cells) the edit gave the map, or null for taking it away. */
-	isomWhole?: string | null;
-	maskWhole?: string | null;
-	units?: WireListChange<UnitRecord>[];
-	doodads?: WireListChange<DoodadRecord>[];
-	sprites?: WireListChange<SpriteRecord>[];
-	locations?: WireLocationChange[];
-}
-declare const SYNC_FIELDS: readonly [
-	"type",
-	"fileVersion",
-	"nameIndex",
-	"descriptionIndex",
-	"playerTypes",
-	"editorPlayerTypes",
-	"playerRaces",
-	"playerColors",
-	"playerRgb",
-	"forces",
-	"unitSettings",
-	"unitAvailability",
-	"upgradeSettings",
-	"upgradeRestrictions",
-	"techSettings",
-	"techRestrictions",
-	"wavs",
-	"cuwp",
-	"cuwpUsed",
-	"triggers",
-	"briefing",
-	"switchNames"
-];
-export type SyncField = (typeof SYNC_FIELDS)[number];
-export interface SyncFieldsOp {
-	kind: "fields";
-	/** Each changed field's new value, packed (`pack`). */
-	set: Partial<Record<SyncField, unknown>>;
-	/** String slots that changed: `[index, before, after]`. */
-	strings?: [
-		number,
-		string | null,
-		string | null
-	][];
-	/** The table's length afterwards (trailing blank slots are dropped). */
-	stringsLength?: number;
-	/** The table's width and text encoding, when they changed. */
-	stringsFormat?: {
-		extended: boolean;
-		encoding: TextEncoding;
-	};
-}
-export interface SyncExtrasOp {
-	kind: "extras";
-	/** `[member name, base64 bytes]`, or null bytes for a member taken out. */
-	set: [
-		string,
-		string | null
-	][];
-}
-export interface SyncResetOp {
-	kind: "reset";
-	label: string;
-	/** The whole scenario, base64. */
-	chk: string;
-}
-export type SyncOp = SyncEditOp | SyncFieldsOp | SyncExtrasOp | SyncResetOp;
 export type SymmetryMode = "none" | "h" | "v" | "hv" | "rot180" | "rot90" | "diag" | "adiag";
 export type StartLayout = "ring" | "corners";
 export interface StartPlacementResult {
@@ -2678,16 +2710,16 @@ export interface DocumentApi {
 	 */
 	edit<R>(label: string, build: (tx: EditTransaction) => Sync<R>): EditResult;
 	/**
-	 * The second kind of write: the tables and settings that live outside the undo model
-	 * — triggers, the string table, switch names, the scenario's own properties — as one
-	 * transaction, the way a settings dialog's OK applies its whole form at once.
-	 * Operations apply as they are called; the commit marks the map modified and bumps
-	 * what the chrome reads. There is no undo entry: keep your own if you need one.
+	 * The second kind of write: the tables and settings the dialogs edit — triggers, the
+	 * string table, switch names, the scenario's own properties — as one transaction, the
+	 * way a settings dialog's OK applies its whole form at once. Operations apply as they
+	 * are called; the commit marks the map modified, bumps what the chrome reads and
+	 * records what changed as one undo entry under `label`.
 	 * `build` is synchronous, as `edit`'s is, and closed when it returns.
 	 *
-	 * There is nothing to roll an update back with, so a builder that throws leaves what
-	 * it wrote: the sections it touched are committed — the map is modified and the
-	 * chrome re-reads — and the error reaches you.
+	 * An update is not rolled back, so a builder that throws leaves what it wrote: the
+	 * sections it touched are committed — the map is modified, the chrome re-reads, the
+	 * undo entry holds what was written — and the error reaches you.
 	 *
 	 * @example
 	 * api.document.update("Rename", (tx) => {
