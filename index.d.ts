@@ -671,6 +671,63 @@ export interface PaletteBand {
 	min: number;
 	max: number;
 }
+/** A parsed `.dds.vr4`: where each megatile's compressed pixels start in `bytes`. */
+export interface HdTileFile {
+	bytes: Uint8Array;
+	count: number;
+	/** Offset of megatile N's DXT1 data (past its DDS header). */
+	offsets: Uint32Array;
+}
+/** The 2x pictures of one tileset, decoded as they are asked for. */
+export interface HdTiles {
+	file: HdTileFile;
+	/** Source pixels per megatile. */
+	tileSize: number;
+	pages: HTMLCanvasElement[];
+	/** Megatile → slot across the pages, or -1 while it has not been drawn. */
+	slot: Int32Array;
+	used: number;
+	/** One cell's pixels, reused for every decode. */
+	scratch: ImageData | null;
+	/** The tileset's moving water or lava, where the data set has the files for it. */
+	effects?: HdEffects | null;
+}
+/** One picture of a `.dds.grp`: its size, and where its DXT1 blocks start. */
+export interface GrpPicture {
+	width: number;
+	height: number;
+	data: number;
+	/** The blocks' length in bytes — what a compressed upload to the graphics card takes whole. */
+	size: number;
+}
+/** How a tileset's masked ground moves: ripples over water, or shimmer over lava. */
+export type HdEffectKind = "water" | "heat";
+/** A sequence of pictures in one file, for the graphics card: the bytes and where each picture's blocks are. */
+export interface PictureSequence {
+	bytes: Uint8Array;
+	pictures: GrpPicture[];
+}
+/** The textures an effect is read from, shared by every tileset that has it. */
+export interface HdEffectTextures {
+	/** Water: the slow, large ripples and the fine ones over them. */
+	large?: PictureSequence;
+	fine?: PictureSequence;
+	/** Heat: the noise the shimmer follows. */
+	noise?: {
+		width: number;
+		height: number;
+		rgba: Uint8Array;
+	};
+}
+/** Everything the viewport needs to animate a tileset's water or lava. */
+export interface HdEffects {
+	kind: HdEffectKind;
+	/** Megatile → picture number in `masks`, or -1 for ground that stands still. */
+	maskOf: Int32Array;
+	/** The mask pictures, decoded on first use like the tiles: white where the effect is. */
+	masks: HdTiles;
+	textures: HdEffectTextures;
+}
 /**
  * All of a tileset's megatiles rendered once into a single image, so the viewport can
  * draw terrain with one `drawImage` per visible tile instead of decoding minitiles on
@@ -686,6 +743,15 @@ export interface TilesetAtlas {
 	averages: Uint32Array;
 	/** The cycling (water/lava) megatiles, or null when the tileset has none. */
 	animation: AtlasAnimation | null;
+	/**
+	 * StarCraft: Remastered's 2x pictures (`hd.ts`), when View ▸ Remastered Terrain is on
+	 * and the data set has them. `atlasSource` then answers from these, at twice the source
+	 * size, and nothing cycles: Remastered moves water and lava by bending the finished
+	 * picture (`hd.effects`, `viewport/effectPass.ts`), so a megatile here is always the
+	 * still one. `image`, `averages` and `animation` stay the classic ones — the minimap
+	 * and the far zooms use the averages either way.
+	 */
+	hd?: HdTiles | null;
 }
 /**
  * A second, small atlas holding only the megatiles that reference cycling palette
@@ -858,6 +924,18 @@ export interface UnitsDat {
 	groupFlags: Uint8Array;
 	/** StarEdit availability flags; all zero for the legacy layout. */
 	availability: Uint16Array;
+	/**
+	 * The unit's voice, as sfxdata.dat ids (0 for none): the one it says when trained, and
+	 * first–last ranges for a click, repeated clicks and an order. Only the first
+	 * `VOICED_UNITS` have ready / annoyed / yes sounds; every unit has a "what".
+	 */
+	readySound: Uint16Array;
+	whatSoundStart: Uint16Array;
+	whatSoundEnd: Uint16Array;
+	annoyedSoundStart: Uint16Array;
+	annoyedSoundEnd: Uint16Array;
+	yesSoundStart: Uint16Array;
+	yesSoundEnd: Uint16Array;
 }
 export interface FlingyDat {
 	/** sprites.dat index. */
@@ -1231,6 +1309,8 @@ export interface ViewFlags {
 	animateWater: boolean;
 	/** Run the units' iscript idle animations (turrets, pulsing buildings, fires, smoke). */
 	animateUnits: boolean;
+	/** Draw terrain and sprites from StarCraft: Remastered's 2x pictures, where the data set in use has them. */
+	hdGraphics: boolean;
 }
 /**
  * A short notice over the map that leaves by itself — what a save says when it is done,
@@ -2071,6 +2151,25 @@ export type Locale = "en" | "ko";
 export type LanguagePreference = "auto" | Locale;
 /** What `Preferences.hotkeys` holds: the commands the user changed, each with its whole list (`[]` = no keys). */
 export type HotkeyOverrides = Record<string, string[]>;
+/**
+ * The adjustable part of Remastered's moving water and lava (`viewport/effectPass.ts`).
+ * How far the picture bends and how the ripple layers drift are the game's own figures;
+ * how large the ripples lie on the map and how fast their pictures change are not in its
+ * files, so these start from values set by eye and can be moved.
+ */
+export interface RemasteredEffects {
+	/** How far water bends the ground under it, as a multiple of the game's amount. 0 leaves it still. */
+	bend: number;
+	/** How much the ripples catch the light. 0 is none. */
+	glint: number;
+	/** The size of the large, slow ripples and of the fine ones over them, in map pixels a repeat. */
+	large: number;
+	fine: number;
+	/** How many ripple pictures go by a second. */
+	rate: number;
+	/** How far lava's heat reaches, in map pixels at its strongest. 0 leaves it still. */
+	heat: number;
+}
 export interface Preferences {
 	/** The editor's own language: `"auto"` follows the browser's (the system's, in the desktop app), else one of `LOCALES`. Applied live. */
 	language: LanguagePreference;
@@ -2152,6 +2251,10 @@ export interface Preferences {
 	/** Initial View ▸ Animate Water / Animate Units. */
 	animateWater: boolean;
 	animateUnits: boolean;
+	/** Initial View ▸ Remastered Graphics: the 2x terrain and sprites, where the data set in use has them. */
+	hdGraphics: boolean;
+	/** How Remastered's water and lava move — the part of the effect the game's files do not fix. */
+	remasteredEffects: RemasteredEffects;
 	/**
 	 * How fast the two animations run, as a multiple of the game's own speed (1 = the
 	 * game's "Fastest"). One of `ANIMATION_SPEEDS`; applied live, not just at startup.
