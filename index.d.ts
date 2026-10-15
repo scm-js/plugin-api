@@ -980,6 +980,8 @@ export interface UpgradesDat {
 	broodWar: Uint8Array;
 	/** The upgrade's name: a 1-based `stat_txt.tbl` index, 0 for none. */
 	label: Uint16Array;
+	/** Its button picture: a frame of `unit\cmdbtns\cmdicons.grp`. */
+	icon: Uint16Array;
 }
 /** The columns Technology Settings shows as defaults. */
 export interface TechdataDat {
@@ -992,6 +994,8 @@ export interface TechdataDat {
 	broodWar: Uint8Array;
 	/** The technology's name: a 1-based `stat_txt.tbl` index, 0 for none. */
 	label: Uint16Array;
+	/** Its button picture: a frame of `unit\cmdbtns\cmdicons.grp`. */
+	icon: Uint16Array;
 }
 /**
  * Unit edits as invertible change lists, in the same spirit as terrain's `TileChange`.
@@ -2329,6 +2333,8 @@ export interface StatusBarCells {
 export type PluginUpdateMode = "notify" | "manual" | "auto";
 /** The revisions a new map can start on; the two older ones are for opening old files, not making new ones. */
 export type NewMapVersion = Extract<MapVersion, "broodwar" | "remastered">;
+export type IconKind = "unit" | "upgrade" | "tech";
+export type IconLook = "normal" | "disabled" | "selected";
 /**
  * The version a host provides; a manifest that asks for a newer one is refused. It stays
  * at 1 while the API is only used by the plugins in the scm-js organisation and grows
@@ -4138,6 +4144,36 @@ export interface GraphicsApi {
 	 */
 	requestUnit(unitId: number): boolean;
 	requestSprite(kind: SpriteKind, id: number): boolean;
+	/**
+	 * The game's own button picture for a unit type, an upgrade or a technology — the icon
+	 * its command card shows — 36 × 34 at most and transparent round the edges. `look`
+	 * colours it as the game does: `"normal"` yellow (the default), `"disabled"` grey,
+	 * `"selected"` white. It does not depend on the map or its tileset. Null for an id with
+	 * no picture (a unit type past 227, a turret) and until `requestIcons` has the pictures;
+	 * null for good from a game data copy made before the editor kept them (installing the
+	 * game data again brings them). The canvas is the editor's own cached one: draw from it.
+	 *
+	 * @example
+	 * // A row of what a player researched, as the game's icons, with the names where there are no pictures.
+	 * const show = () => list.replaceChildren(...done.map((r) => {
+	 *   const icon = api.graphics.icon(r.kind, r.id);
+	 *   if (!icon) return api.ui.el("span", {}, r.kind === "tech" ? api.names.tech(r.id) : api.names.upgrade(r.id));
+	 *   const canvas = api.ui.el("canvas", { width: icon.width, height: icon.height });
+	 *   canvas.getContext("2d")?.drawImage(icon.image, 0, 0);
+	 *   return canvas;
+	 * }));
+	 * api.graphics.requestIcons();
+	 * api.graphics.onImageLoaded(show);
+	 * show();
+	 */
+	icon(kind: IconKind, id: number, options?: {
+		look?: IconLook;
+	}): PluginImage | null;
+	/**
+	 * Start fetching the icon pictures (one sheet holds them all), and say whether they are
+	 * in memory. `onImageLoaded` fires when they arrive.
+	 */
+	requestIcons(): boolean;
 	/** A GRP finished loading: anything drawn from one may look different now. */
 	onImageLoaded(listener: () => void): Disposable;
 }
@@ -5637,6 +5673,24 @@ export interface UiApi {
 	 * }
 	 */
 	progress(label: string, options?: ProgressOptions): ProgressHandle;
+	/**
+	 * A tooltip in the editor's own style over an element of yours, in place of the
+	 * browser's `title`. `content` is a line of text, or a function asked for what to show
+	 * at the pointer — rows, bars, pictures, built with `el` and the widgets — which is how
+	 * a chart says what is under the pointer: it is asked again as the pointer moves, and
+	 * answering null hides the tip there. The editor places it beside the pointer, keeps it
+	 * on screen and takes it away when the pointer leaves, the element leaves the page, or
+	 * the plugin stops. `refresh()` asks again where the pointer stands (a picture arrived,
+	 * the data moved). Remove the element's `title`, or both show.
+	 *
+	 * @example
+	 * // A chart that reads out the value under the pointer.
+	 * api.ui.tooltip(canvas, (at) => {
+	 *   const i = Math.floor((at.offsetX / canvas.clientWidth) * values.length);
+	 *   return values[i] === undefined ? null : api.ui.el("div", {}, api.ui.el("b", {}, `${values[i]}`), " minerals");
+	 * });
+	 */
+	tooltip(target: HTMLElement, content: string | ((at: TooltipPointer) => HTMLElement | string | null), options?: TooltipOptions): TooltipHandle;
 	/** `el("div", { className: "row" }, …)`: the DOM helper the widgets are built from. */
 	el<K extends keyof HTMLElementTagNameMap>(tag: K, props?: Record<string, unknown>, ...children: WidgetChild[]): HTMLElementTagNameMap[K];
 	/** Buttons, fields, forms and lists in the editor's own styles. */
@@ -5650,6 +5704,33 @@ export interface UiApi {
 	ask(dialog: DialogId, payload?: Record<string, unknown>): Promise<boolean>;
 	/** Ask the viewport to repaint (a transaction does this by itself). Raises no event. */
 	repaint(): void;
+}
+/** Where the pointer is, for a tooltip's `content`. */
+export interface TooltipPointer {
+	/** In the page, CSS pixels (`clientX` / `clientY`). */
+	x: number;
+	y: number;
+	/** From the target's top-left corner, CSS pixels. */
+	offsetX: number;
+	offsetY: number;
+	/** Whether a button is held — a drag across a chart. */
+	pressed: boolean;
+}
+export interface TooltipOptions {
+	/**
+	 * Milliseconds the pointer rests before the tip shows. 500 for text, as the editor's own
+	 * tooltips; 0 for a function, which reads out what is under the pointer and should keep
+	 * up with it.
+	 */
+	delay?: number;
+	/** A width the tip does not grow past, CSS pixels; 320 by default. */
+	maxWidth?: number;
+}
+export interface TooltipHandle extends Disposable {
+	/** Ask `content` again where the pointer stands; nothing when the tip is not showing. */
+	refresh(): void;
+	/** Take the tip away until the pointer next moves over the target. */
+	hide(): void;
 }
 export interface ConfirmOptions {
 	title?: string;
