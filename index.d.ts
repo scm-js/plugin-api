@@ -41,7 +41,12 @@ export type CombineMode =
 /** Only the last occurrence is used — of those at least the section's minimum length. */
  | "last"
 /** Only the first occurrence is used — of those at least the section's minimum length. */
- | "first";
+ | "first"
+/**
+ * A settings table: each occurrence changes only the entries it marks as not using the
+ * game's own values (`EntryLayout`), the rest keep what an earlier one gave them.
+ */
+ | "entries";
 /**
  * The byte encodings a map's text can be in, and how to tell which one a file used.
  *
