@@ -605,7 +605,12 @@ export interface Scenario {
 	/** SWNM: string index per switch (0 = unnamed); null when the file has no section. */
 	switchNames: number[] | null;
 }
-export type MapVersion = "original" | "hybrid" | "broodwar" | "remastered";
+/**
+ * The revisions. `remasteredHybrid` is Remastered's VER 64: read like a hybrid 63 file, with
+ * no Brood War needed, and allowed STRx. The editor keeps it but does not offer it for a map
+ * that is not already one.
+ */
+export type MapVersion = "original" | "hybrid" | "broodwar" | "remastered" | "remasteredHybrid";
 export interface Cv5Group {
 	/** Doodad groups store 1 here; terrain groups store a group type. */
 	index: number;
