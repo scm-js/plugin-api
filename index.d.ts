@@ -151,7 +151,7 @@ export interface Forces {
 	flags: number[];
 }
 export interface PlayerRgb {
-	/** `[r, g, b]` for each of the 8 playable slots; only read when `mode` is `Custom`. */
+	/** `[r, g, b]` for each of the 8 playable slots: the colour when `mode` is `Custom`; the editor writes `[0, 0, COLR]` for `Palette`. */
 	rgb: [
 		number,
 		number,
@@ -1781,7 +1781,7 @@ export interface PlayerSlotView {
 export interface PlayerPatch {
 	type?: number;
 	race?: number;
-	/** COLR index 0–15 (playable slots). */
+	/** COLR index 0–11 (playable slots). Older versions show a wrong colour past 11, and Remastered skips it. */
 	color?: number;
 	/** A CRGB custom colour, or null to go back to the palette colour (playable slots). */
 	rgb?: [
