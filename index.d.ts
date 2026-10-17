@@ -2518,7 +2518,7 @@ export interface PluginApi {
 	readonly menu: MenuApi;
 	/** Items in the right-click menus of the map and the terrain palette. */
 	readonly contextMenu: ContextMenuApi;
-	/** Key combinations, tried before the editor's own and never while a text field has focus. */
+	/** Key combinations, tried before the editor's own, and never while a text field has focus or a dialog is open. */
 	readonly hotkeys: HotkeyApi;
 	readonly commands: CommandsApi;
 	/** Live objects one plugin holds out for others to use, found by name and watched for arriving. */
@@ -2535,7 +2535,7 @@ export interface PluginApi {
 	readonly sync: SyncApi;
 	/**
 	 * A small key-value store of the plugin's own, kept in the browser's local storage under
-	 * the plugin's id and listed with everything else in Preferences ▸ Browser storage.
+	 * the plugin's id and listed with everything else in Preferences ▸ Storage.
 	 */
 	readonly storage: StorageApi;
 	/** `console.log` with the plugin's name in front. */
@@ -4591,6 +4591,20 @@ export interface TilesetApi {
 	load(tileset?: TilesetId): Promise<boolean>;
 	raw(): LoadedTileset | null;
 }
+/**
+ * What is selected on each object layer, by index into the scenario's lists, with a
+ * setter for each; the Clipboard layer's marked area; the active layer; and the Layers
+ * panel's locks.
+ *
+ * @example
+ * // Select Player 1's units inside the marked area.
+ * const area = api.selection.markedArea();
+ * if (area) {
+ *   const mine = new Set(api.query.unitsOf(0));
+ *   api.selection.setLayer("units");
+ *   api.selection.setUnits(api.query.unitsIn(area).filter((i) => mine.has(i)));
+ * }
+ */
 export interface SelectionApi {
 	/** The Cut / Copy / Paste layer's marked rectangle, in tiles. */
 	markedArea(): Rect | null;
@@ -4950,6 +4964,7 @@ export interface DialogTransfer {
 export interface DialogSpec {
 	title: string;
 	size?: DialogSize;
+	/** A fixed height (720 CSS pixels, less on a small screen) instead of the content's own, for a body that scrolls or fills. */
 	tall?: boolean;
 	/** Fill `body` (an empty `<div>` inside the dialog); return a cleanup if you need one. */
 	mount(body: HTMLElement, dialog: DialogHandle): void | (() => void);
@@ -5524,14 +5539,14 @@ export type OverlayAbove =
  | "everything";
 /**
  * An overlay is a picture drawn over the map that the user can turn on and off: it
- * is listed under View ▸ Overlays and in the Layers panel, stays while the user works
+ * is a tick in the View menu and a row in the Layers panel, stays while the user works
  * on any layer, and never takes the pointer — clicks go to the active layer's tools
  * as usual. It hears the pointer through `onHover`, which is how a readout follows the
  * mouse while the user places units. Register one at activation and keep the handle;
  * it goes away with the plugin.
  *
  * @example
- * // A ring twelve tiles wide round every start location, listed under View ▸ Overlays.
+ * // A ring twelve tiles wide round every start location, a tick in the View menu.
  * const overlay = api.ui.overlay({
  *   name: "Start rings",
  *   above: "objects",
@@ -5548,7 +5563,7 @@ export type OverlayAbove =
  * api.events.on("units", () => overlay.redraw());
  */
 export interface OverlaySpec {
-	/** Shown in View ▸ Overlays and the Layers panel. Unique per plugin. In English, like a menu label: shown through the plugin's registered catalogues. */
+	/** Shown in the View menu and the Layers panel. Unique per plugin. In English, like a menu label: shown through the plugin's registered catalogues. */
 	name: string;
 	/** Start visible; true by default. What the user last set for this name wins for the session. */
 	visible?: boolean;
@@ -5697,7 +5712,7 @@ export interface UiApi {
 	 */
 	mapTool(spec: MapToolSpec): MapToolHandle;
 	/**
-	 * A picture over the map the user can switch on and off (View ▸ Overlays, the Layers
+	 * A picture over the map the user can switch on and off (a tick in the View menu, the Layers
 	 * panel) and that stays while they work on any layer. It draws at every repaint and
 	 * hears the pointer, but never takes it. As many as you like; they go with the plugin.
 	 */
@@ -6299,7 +6314,8 @@ export interface ContextMenuApi {
 }
 export interface HotkeyApi {
 	/**
-	 * `"Ctrl+Shift+I"`, `"Alt+F9"`, `"F8"` — modifiers in any order, then a key name.
+	 * `"Ctrl+Shift+I"`, `"Alt+F9"`, `"F8"` — modifiers in any order, then a key name. Tried
+	 * before the editor's own keys, and never while a text field has focus or a dialog is open.
 	 *
 	 * @example
 	 * api.hotkeys.add("Ctrl+Alt+G", () => api.view.setFlags({ grid: !api.view.flags().grid }));
