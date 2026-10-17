@@ -167,7 +167,7 @@ export interface UnitSettings {
 	hitPoints: Uint32Array;
 	shields: Uint16Array;
 	armor: Uint8Array;
-	/** Game frames (15 per second at Fastest). */
+	/** Game frames (about 24 per second at Fastest, 15 at Normal). */
 	buildTime: Uint16Array;
 	mineralCost: Uint16Array;
 	gasCost: Uint16Array;
@@ -516,7 +516,11 @@ declare const ActionFlag: {
 declare const TriggerFlag: {
 	/** Game bookkeeping: every condition was met this cycle. */
 	readonly ConditionsMet: 1;
-	/** Ignore Defeat / Draw for this trigger. */
+	/**
+	 * Not what the name says: each time the trigger's actions run, the player counts as won
+	 * without winning, so every other player in the game with no result is defeated, and a
+	 * Defeat or Draw of this trigger stalls (docs/triggers.md). The name stays for plugins.
+	 */
 	readonly IgnoreGameEnd: 2;
 	/** Same as a Preserve Trigger action. */
 	readonly Preserve: 4;
