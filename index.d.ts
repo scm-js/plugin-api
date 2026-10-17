@@ -52,9 +52,9 @@ export type CombineMode =
  *
  * StarEdit wrote the string table in whatever code page Windows was running — EUC-KR
  * (CP949) on a Korean machine, Shift_JIS on a Japanese one, Windows-1252 nearly everywhere
- * else — and 1.16.1 still reads it that way. Remastered writes UTF-8 and, reading, tries
- * UTF-8 first and falls back to the client's legacy code page when the bytes are not
- * valid UTF-8. The file itself carries no note of which was used, so a table is *guessed*
+ * else — and 1.16.1 still reads it that way. Remastered writes UTF-8 and, reading, decides
+ * per string: UTF-8 when the bytes are valid UTF-8, else Korean when they pass its CP949
+ * test, else Windows-1252 (`remasteredReadsAsKorean`). The file itself carries no note of which was used, so a table is *guessed*
  * on open (`detectTextEncoding`) and the guess is a setting the user can correct
  * (Scenario ▸ Map Revision).
  *
