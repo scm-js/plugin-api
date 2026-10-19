@@ -2327,6 +2327,12 @@ export interface Preferences {
 	 */
 	hotkeys: HotkeyOverrides;
 	/**
+	 * The hosted editor's count of which features are used (`services/usage.ts`), and with it
+	 * the site's visit count for this browser. On by default; only shown, and only does
+	 * anything, on scmjs.dev.
+	 */
+	counting: boolean;
+	/**
 	 * Which cells the status bar shows (Preferences ▸ View). The message, the symmetry badge
 	 * while a mode is on, and the plugins' items always show.
 	 */
