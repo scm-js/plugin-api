@@ -1049,6 +1049,7 @@ export interface DoodadVerdict {
 	/** Cell indices (row-major) whose ground fails the check, for the ghost to mark red. */
 	bad: number[];
 }
+export type SymmetryMode = "none" | "h" | "v" | "hv" | "rot180" | "rot90" | "diag" | "adiag";
 export interface LocationStringChange {
 	index: number;
 	before: string | null;
@@ -2081,7 +2082,6 @@ export interface ChangeTilesetResult {
 	spritesDropped: number;
 	refilled: boolean;
 }
-export type SymmetryMode = "none" | "h" | "v" | "hv" | "rot180" | "rot90" | "diag" | "adiag";
 export type StartLayout = "ring" | "corners";
 export interface StartPlacementResult {
 	changes: UnitChange[];
