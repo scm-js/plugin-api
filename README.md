@@ -11,41 +11,49 @@ npm i -D @scm-js/plugin-api
 import type { PluginApi } from "@scm-js/plugin-api";
 
 export function activate(api: PluginApi) {
-  api.ui.toast("Hello from a plugin.");
+  api.ui.toast({ title: "Hello from a plugin." });
 }
 ```
 
-Types only. A plugin imports them with `import type`, which is erased before the editor's
-loader ever sees the specifier — which is what lets this be a normal npm dependency
-without breaking the rule that a plugin's *runtime* code cannot import packages by name.
+The package has types only. Import them with `import type`. TypeScript removes those imports
+before the editor's loader sees the plugin, so it can be an ordinary npm dependency. A
+plugin's run-time code cannot import packages by name, and everything it needs at run time
+arrives on `api`.
+
+## Where to start
+
+- [Plugins](https://docs.scmjs.dev/plugins/) is the author's guide: what a plugin can do and
+  how to write, load and publish one.
+- The [API reference](https://docs.scmjs.dev/api/) lists every call, generated from these
+  declarations.
+- [plugin-hello-world](https://github.com/scm-js/plugin-hello-world) is the smallest working
+  plugin.
 
 ## Versions
 
-The major **is** `PLUGIN_API_VERSION`, so `"^1"` is the range to write and it means what
-it says: the minor moves whenever the declarations change, and a change that would break a
-plugin moves the major and `PLUGIN_API_VERSION` together. The editor's own version is
-deliberately not in here — editor 0.1.0 to 0.2.0 is an ordinary release, and semver would
-read it as a break.
+The package's major version is `PLUGIN_API_VERSION`, which is 1 and has never changed. Write
+`"^1"` as the range. The minor version moves whenever the declarations change. A change that
+would break a plugin would move the major version and `PLUGIN_API_VERSION` together.
 
-`PLUGIN_API_VERSION` is 1 and has never moved. Your manifest's `"api": 1` is the version
-your plugin *needs*; an editor providing an older one refuses to load it.
+The editor's own version is not used here. Going from editor 0.1.0 to 0.2.0 is an ordinary
+release, and semver would read it as a break.
+
+Your manifest's `"api": 1` is the version your plugin needs. An editor that provides an
+older one will not load it.
 
 ## This repository
 
-**Nothing here is written by hand** except this README and the LICENSE. `index.d.ts` and
-`package.json` are generated from `src/plugins/api.ts` in the editor by
-`npm run build:plugin-types` and published from there, so the contract has one source and
-one copy of its declarations. `main` is the tip; each `v*` tag is a published version.
+Only this README and the LICENSE are written by hand. `index.d.ts` and `package.json` are
+generated from `src/plugins/api.ts` in the editor by `npm run build:plugin-types`, and
+published from there. `main` is the newest version, and each `v*` tag is a published one.
 
-It exists beside the registry as the audit trail behind the tarball, and as the way in for
-anyone whose registry the package is not on — `npm i -D github:scm-js/plugin-api#v1.0.0`
-works and installs exactly the same two files.
+The repository is the record behind each npm release. It is also a way to install the
+package without the npm registry:
 
-## What the API covers
+```sh
+npm i -D github:scm-js/plugin-api#v1.64.0
+```
 
-[`docs/plugins.md`](https://github.com/scm-js/scm-js/blob/main/docs/plugins.md) in the
-editor is the author's guide and the tour of what a plugin can do; this repository is only
-the typings for it. [`plugin-hello-world`](https://github.com/scm-js/plugin-hello-world) is
-the smallest working example.
+That installs the same files as the registry.
 
 MIT, like the editor.
