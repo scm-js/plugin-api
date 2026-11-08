@@ -1155,6 +1155,13 @@ export interface SyncFieldsOp {
 		extended: boolean;
 		encoding: TextEncoding;
 	};
+	/**
+	 * For each field in `set`, `fieldHash` of the value the change was made from — what the
+	 * sender's dialog showed. A receiver whose copy holds something else learns that the op
+	 * writes over a version its sender never saw (`Applied.overwritten`). Absent from ops
+	 * sent by older editors, which are then never reported as overwriting.
+	 */
+	from?: Partial<Record<SyncField, string>>;
 }
 export interface SyncExtrasOp {
 	kind: "extras";
@@ -1241,6 +1248,34 @@ export interface HistoryEdit {
 	 * redo atoms apply it with `applyTables`.
 	 */
 	tables?: TablesEdit;
+	/**
+	 * A change to the whole map — Resize / Crop, Change Tileset: the map as it stands on the
+	 * other side of the step (`WholeState`). Undo and redo swap it with the scenario's own and
+	 * keep what they took out here, so the entry always holds the side it is not on. An entry
+	 * with this part has no other: `applyEntry` leaves it alone, and the undo and redo atoms
+	 * apply it with `swapWholeState`.
+	 */
+	whole?: WholeState;
+}
+/**
+ * What a whole-map change replaces: the size, the tileset and every list or grid that is
+ * laid out by the map's size. Held by reference, not copied — Resize and Change Tileset
+ * build new arrays rather than writing into the old ones, and every later in-place edit is
+ * on the undo stack above the entry, so by the time the entry is undone the arrays it took
+ * out are exactly as it left them.
+ */
+export interface WholeState {
+	width: number;
+	height: number;
+	era: number;
+	tiles: Uint16Array;
+	editorTiles: Uint16Array;
+	isom: Uint16Array | null;
+	mask: Uint8Array | null;
+	units: Scenario["units"];
+	sprites: Scenario["sprites"];
+	doodads: Scenario["doodads"];
+	locations: Scenario["locations"];
 }
 /**
  * Why the map changed: an edit recorded in the history, an undo or redo of one, a dialog
@@ -2995,8 +3030,8 @@ export interface DocumentApi {
 		launch?: boolean;
 	}): Promise<TestMapOutcome | null>;
 	/**
-	 * Scenario ▸ Resize / Crop Map: a transaction outside the undo model that drops both
-	 * history stacks (as the dialog does). Content keeps its place relative to `anchor`
+	 * Scenario ▸ Resize / Crop Map: one undo step, as the dialog is (on a shared map, where
+	 * it replaces everyone's map, both history stacks are dropped instead). Content keeps its place relative to `anchor`
 	 * (a 3 × 3 grid, row-major, 4 = centre, the default); the new ground is `terrainId`
 	 * (the tileset's default when omitted); objects outside the new bounds are dropped,
 	 * locations clamped unless `clampLocations` is false. Null with no map.
@@ -3006,7 +3041,7 @@ export interface DocumentApi {
 	 * Scenario ▸ Map Properties ▸ Tileset: change ERA and lay the terrain again with the
 	 * new tileset's terrain (tile numbers do not carry across tilesets; the doodads go with
 	 * them, everything else stays). Waits for the new graphics so the fill uses real tiles.
-	 * Like `resize`, a transaction outside the undo model. Null with no map.
+	 * Like `resize`, one undo step (on a shared map, the history is dropped instead). Null with no map.
 	 */
 	changeTileset(options: ChangeTilesetOptions): Promise<ChangeTilesetResult | null>;
 	readonly extras: ExtrasApi;
