@@ -954,6 +954,16 @@ export interface UnitsDat {
 export interface FlingyDat {
 	/** sprites.dat index. */
 	sprite: Uint16Array;
+	/** The fastest the flingy moves, in 1/256 pixel a frame (a Zergling's 1408 is 5.5 pixels a frame). */
+	topSpeed: Uint32Array;
+	/** How quickly it reaches that speed, in the same units a frame. */
+	acceleration: Uint16Array;
+	/** How far before its goal it starts to slow down, in 1/256 pixel. */
+	haltDistance: Uint32Array;
+	/** How sharply it turns. */
+	turnRadius: Uint8Array;
+	/** 0 flingy.dat's own figures, 1 partially mobile or weapon, 2 iscript.bin's (a unit whose walk is animated). */
+	moveControl: Uint8Array;
 }
 export interface SpritesDat {
 	/** images.dat index. */
