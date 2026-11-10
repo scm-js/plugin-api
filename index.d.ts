@@ -861,6 +861,11 @@ export interface TerrainType extends TerrainName {
 	group: number;
 	height: 0 | 1 | 2;
 	buildable: boolean;
+	/**
+	 * The name in the user's language, where `name` is not a string of the catalogue's: a pair
+	 * terrain's name is put together ("Mud (mid ground)", "Group 3672"). Shown through `terrainLabel`.
+	 */
+	label?: string;
 }
 export type GroupKind = "terrain" | "edge" | "doodad" | "other";
 export interface TileInfo {
@@ -895,7 +900,11 @@ export interface Rect {
 	x1: number;
 	y1: number;
 }
-/** What Replace Terrain matches or writes: a flat terrain type (by ISOM id) or one exact tile. */
+/**
+ * What Replace Terrain matches or writes: a flat terrain type or one exact tile. A terrain's id
+ * is its ISOM id (the CV5 `index` of the flat pair), or a pair id (`palette.ts#PAIR_TERRAIN`)
+ * for flat ground the tileset does not type — a mod's added pairs.
+ */
 export type TerrainPick = {
 	kind: "terrain";
 	id: number;
