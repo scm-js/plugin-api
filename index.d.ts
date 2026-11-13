@@ -1363,7 +1363,7 @@ export interface SpriteGroup {
  */
 /** The classic SCMDraft layer combo; `"clipboard"` is Cut / Copy / Paste. */
 export type EditorLayer = "terrain" | "doodads" | "units" | "sprites" | "locations" | "fog" | "clipboard";
-export type TerrainMode = "isom" | "rect" | "tile" | "blend";
+export type TerrainMode = "isom" | "rect" | "tile" | "blend" | "heal";
 export interface ViewFlags {
 	grid: boolean;
 	locations: boolean;
