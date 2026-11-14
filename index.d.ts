@@ -1060,6 +1060,8 @@ export interface DoodadPlacementOptions {
 	snapToGrid: boolean;
 	/** Place as plain terrain: the tiles (both sections) and any overlay sprite, no DD2 record — a placement and a conversion in one. */
 	asTerrain: boolean;
+	/** Pin the tiles of a doodad that goes down as terrain (a stretched one always does), so the brushes that lay terrain by rule leave it (editor/pins.ts). */
+	pin: boolean;
 }
 export interface DoodadVerdict {
 	ok: boolean;
@@ -1262,6 +1264,16 @@ export interface HistoryEdit {
 	 */
 	createdMask?: Uint8Array;
 	/**
+	 * A change to the pinned tiles (editor/pins.ts): the pins file of the map's archive as it
+	 * was and as the edit left it, null for none. Not part of the scenario, so `applyEntry`
+	 * leaves it alone and the commit, undo and redo atoms put it in force; it may come alone
+	 * (a stroke of the Pin brush) or with the tiles it pins (a doodad placed as terrain).
+	 */
+	pins?: {
+		before: Uint8Array | null;
+		after: Uint8Array | null;
+	};
+	/**
 	 * What a dialog wrote — settings, triggers, the briefing, strings (editor/tableHistory.ts).
 	 * An entry with this part has no other: `applyEntry` leaves it alone, and the undo and
 	 * redo atoms apply it with `applyTables`.
@@ -1363,7 +1375,7 @@ export interface SpriteGroup {
  */
 /** The classic SCMDraft layer combo; `"clipboard"` is Cut / Copy / Paste. */
 export type EditorLayer = "terrain" | "doodads" | "units" | "sprites" | "locations" | "fog" | "clipboard";
-export type TerrainMode = "isom" | "rect" | "tile" | "blend" | "heal";
+export type TerrainMode = "isom" | "rect" | "tile" | "blend" | "heal" | "pin";
 export interface ViewFlags {
 	grid: boolean;
 	locations: boolean;
@@ -1379,6 +1391,8 @@ export interface ViewFlags {
 	buildability: boolean;
 	/** The joins between tiles that show: a line along each, stronger the more of a step it is. */
 	seams: boolean;
+	/** The pinned tiles (editor/pins.ts), a mark on each; the Pin brush shows them whatever this says. */
+	pins: boolean;
 	startLocations: boolean;
 	/** Cycle the palette so water and lava animate as they do in game. */
 	animateWater: boolean;
