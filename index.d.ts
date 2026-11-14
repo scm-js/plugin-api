@@ -2194,6 +2194,46 @@ export interface BlendOptions {
 	/** Optional filter over tile ids (the palette's group-kind dropdown). */
 	include?: (id: number) => boolean;
 }
+export type StretchAxis = "se" | "ne" | "e" | "s";
+export interface FairnessPlace {
+	/** The tiles the place covers, on the side nearest the map's top-left; x1 and y1 are past the end. */
+	x0: number;
+	y0: number;
+	x1: number;
+	y1: number;
+	/** Small squares that differ from an image, and how many of them in each way. */
+	squares: number;
+	walk: number;
+	height: number;
+	build: number;
+}
+export interface UnmatchedResource {
+	/** Index into `scn.units`. */
+	index: number;
+	unitId: number;
+	x: number;
+	y: number;
+	/** Nothing of its kind stands at an image of its spot, or what stands there holds another amount. */
+	why: "missing" | "amount";
+}
+export interface FairnessReport {
+	mode: SymmetryMode;
+	/** Small squares compared: every square with its images, counted once. */
+	compared: number;
+	/** Of those, the ones that differ from an image in any way, and in each way. */
+	unlike: number;
+	walk: number;
+	height: number;
+	build: number;
+	/** The share that plays alike, 0..1. */
+	alike: number;
+	/** Where the differences are, largest first. */
+	places: FairnessPlace[];
+	/** A byte per small square (`width * 4` across), `UNLIKE_*` bits, set on a square and on its images. */
+	mask: Uint8Array;
+	/** Minerals, geysers and start locations with no equal counterpart. */
+	resources: UnmatchedResource[];
+}
 export type ClipPart = "terrain" | "doodads" | "units" | "sprites" | "locations" | "fog";
 export type ClipParts = Record<ClipPart, boolean>;
 /** Whether a paste adds to what is in the target area or clears its objects first. */
@@ -3309,6 +3349,28 @@ export interface EditTransaction {
 	}): number;
 	/** Stamp a doodad (a `dddata.bin` id) at a tile; returns its record index, or -1 when unknown or off the map. */
 	placeDoodad(doodadId: number, tx: number, ty: number, owner?: number): number;
+	/**
+	 * Place a doodad stretched along one of its axes: a ramp made wider, a bridge made
+	 * longer or wider (`palette.stretchAxes` lists the axes a doodad stretches along; any
+	 * of the four is accepted). The ends move apart and the middle is laid again in the gap,
+	 * `steps` times; a step is two tiles across (and one down or up on a diagonal), or one
+	 * tile down for `"s"`. A negative count stretches back from where the doodad stands.
+	 * `(tx, ty)` is the top-left tile the doodad would have unstretched.
+	 *
+	 * It goes down as terrain, as the editor's own stretch does: the tiles in both sections
+	 * and an overlay as a plain sprite, with no doodad record, since a map can only name a
+	 * doodad as the game ships it. Nothing checks the ground under it. Returns the flat
+	 * indices of the tiles it covers (pass them to `pin` to keep them), or an empty list
+	 * when the doodad is unknown, the graphics are missing or the stretch does not fit on
+	 * the map.
+	 *
+	 * @example
+	 * // A ramp three steps wider along its cliff, and kept as laid.
+	 * const ramp = api.palette.active().doodad;
+	 * const [axis] = api.palette.stretchAxes(ramp);
+	 * if (axis) api.document.edit("Wide ramp", (tx) => { tx.pin(tx.placeStretchedDoodad(ramp, 40, 30, axis, 3)); });
+	 */
+	placeStretchedDoodad(doodadId: number, tx: number, ty: number, axis: StretchAxis, steps: number, owner?: number): number[];
 	removeDoodads(indices: readonly number[]): number;
 	/**
 	 * Make doodads plain terrain: their records go, their tiles stay (in TILE as well as
@@ -3379,6 +3441,22 @@ export interface EditTransaction {
 	 * (`terrain.blendCandidates` ranks what fits). Returns whether the cell was on the map.
 	 */
 	placeBlend(x: number, y: number, side: Side, id: number): boolean;
+	/**
+	 * The Heal brush over `cells`: where a tile joins a neighbour visibly (`terrain.seamStep`
+	 * over 8, what View ▸ Seam Overlay draws) and the tileset has a tile that joins better
+	 * and is the same to the game (the same flags bit for bit, the same kind of ground),
+	 * that tile is laid instead. How the map plays does not change. Tiles under a placed
+	 * doodad and pinned tiles are left alone. Needs the graphics; returns tiles changed.
+	 */
+	heal(cells: Cells): number;
+	/**
+	 * Pin (or with `on` false, unpin) tiles. A pinned tile is left as it is by everything
+	 * that lays terrain by rule, in the editor and in a transaction alike: `paintIsom`,
+	 * `stampTerrain`, `fillFlat`, `fillArea`, `replaceTerrain`, `tilesFromIsom` and `heal`.
+	 * `setTile`, `setTiles`, `placeBlend`, `paste` and the doodad calls still write it. Pins
+	 * are saved with the map. Returns how many tiles' pins changed.
+	 */
+	pin(cells: Cells, on?: boolean): number;
 	/**
 	 * What StarEdit does after an isometric edit: regenerate every tile from the ISOM
 	 * lattice (the reverse of `rebuildIsom`). Needs ISOM and the graphics; returns tiles
@@ -4870,6 +4948,46 @@ export interface TerrainApi {
 	 * Empty without the graphics.
 	 */
 	blendCandidates(anchorTileId: number, side: Side, options?: Partial<BlendOptions>): BlendCandidate[];
+	/**
+	 * How much of a step the join is between a tile and the tile on its `side`: the
+	 * difference between the two rows of pixels that meet, less what each picture changes
+	 * by one pixel in from that edge. Around 0 for tiles drawn to meet; over 8, View ▸ Seam
+	 * Overlay draws the join. Null without the graphics or for a tile with no picture.
+	 */
+	seamStep(tileId: number, side: Side, neighbourId: number): number | null;
+	/** How many joins View ▸ Seam Overlay draws on `cells` (on the whole map when omitted); 0 without the graphics. */
+	seams(cells?: Cells): number;
+	/** The pinned tiles (`tx.pin`), as flat indices in ascending order. */
+	pinned(): number[];
+	/**
+	 * The tiles laid by hand, as far as the map can tell: those its isometric data does
+	 * not account for (a doodad placed as terrain, a blend, another editor's ground), in
+	 * `rect` or on the whole map. Empty without ISOM or the graphics.
+	 *
+	 * @example
+	 * // Keep everything hand-laid before repainting around it.
+	 * api.document.edit("Pin hand-laid ground", (tx) => { tx.pin(api.terrain.handLaid()); });
+	 */
+	handLaid(rect?: Rect): number[];
+	/**
+	 * How alike the map's ground plays to its own image under each symmetry mode that fits
+	 * its shape, 0..1: the share of small squares (minitiles) that walk, stand and build as
+	 * their images do. A mirrored map reads 0.98 and up under its own mode. Empty without
+	 * the graphics.
+	 */
+	symmetryShares(): Partial<Record<SymmetryMode, number>>;
+	/**
+	 * The map against its own image under `mode` (the symmetry tool's mode when omitted):
+	 * how many small squares differ in walking, height and building, the places they are
+	 * in, a mask for drawing them, and the mineral fields, geysers and start locations with
+	 * no equal counterpart. Null for `"none"`, for a mode the map's shape does not allow,
+	 * and without the graphics.
+	 *
+	 * @example
+	 * const report = api.terrain.fairness("h");
+	 * if (report) api.ui.status(`${report.unlike} small squares differ in ${report.places.length} places`);
+	 */
+	fairness(mode?: SymmetryMode): FairnessReport | null;
 	/** The Rect brush's terrain, in the tileset's own terms: the even CV5 group of a flat pair, or -1. */
 	flatGroupOf(terrainId: number): number;
 	/** Tools ▸ Symmetry…: the mode the brushes paint and the palettes place under. */
@@ -5123,6 +5241,19 @@ export interface PaletteApi {
 		doodads: DoodadInfo[];
 	}[];
 	doodadInfo(doodadId: number): DoodadInfo | null;
+	/**
+	 * The axes a doodad stretches along without making a mess (`tx.placeStretchedDoodad`):
+	 * a ramp along the cliff it cuts, a bridge along its deck and, for most, across it.
+	 * `"se"` and `"ne"` are the two diagonals, `"e"` straight across, `"s"` straight down.
+	 * Empty for a doodad with no middle to repeat, and without the graphics.
+	 */
+	stretchAxes(doodadId: number): StretchAxis[];
+	/**
+	 * The doodad that is this one seen in a mirror, left for right: the ramp for the cliff
+	 * running the other way. What the symmetry tool places across a left-right mirror. The
+	 * doodad itself when it is its own image; null when the tileset has none.
+	 */
+	doodadTwin(doodadId: number): number | null;
 }
 export interface NamedValue {
 	value: number;
