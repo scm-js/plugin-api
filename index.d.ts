@@ -3846,7 +3846,8 @@ export interface TriggerTextApi {
 	}): string;
 	/**
 	 * Parse text into records, resolving names against the open map (and interning the
-	 * strings it mentions). Throws a `TriggerTextError` carrying the line on bad input.
+	 * strings it mentions). Throws a `TriggerTextError` carrying the line on bad input,
+	 * and then no string was added: the map is as it was.
 	 */
 	parse(source: string, options?: {
 		briefing?: boolean;
