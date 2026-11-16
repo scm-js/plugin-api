@@ -1297,6 +1297,29 @@ export interface HistoryEdit {
 	 * apply it with `swapWholeState`.
 	 */
 	whole?: WholeState;
+	/**
+	 * A change to the whole document made outside the editor's own tools — a linked `scmjs`
+	 * command (services/editorLink.ts): the document as it stands on the other side of the
+	 * step. Undo and redo put it in place of the open one and keep what they took out here,
+	 * as `whole` does, but the object itself is swapped, since any part of it may differ. An
+	 * entry with this part has no other.
+	 */
+	document?: DocumentSide;
+}
+/**
+ * One side of a `document` step: the scenario object and the archive's other files. Held by
+ * reference — every later in-place edit is on the undo stack above the entry, so when the
+ * entry is undone the object it took out is exactly as it was left.
+ */
+export interface DocumentSide {
+	scenario: Scenario;
+	extras: Map<string, Uint8Array>;
+	/**
+	 * The members carried as stored (`StoredMembers` of formats/mpq/scm.ts), or null. Not named
+	 * here: this module's types are part of the plugin API's declarations, which must stand
+	 * without the archive reader's.
+	 */
+	stored: unknown;
 }
 /**
  * What a whole-map change replaces: the size, the tileset and every list or grid that is
