@@ -2427,16 +2427,14 @@ export interface Preferences {
 		brushSize: number;
 		locationTiles: number;
 	};
-	/** Initial View ▸ Animate Water / Animate Units. */
-	animateWater: boolean;
-	animateUnits: boolean;
-	/** Initial View ▸ Remastered Graphics: the 2x terrain and sprites, where the data set in use has them. */
-	hdGraphics: boolean;
 	/** How Remastered's water and lava move — the part of the effect the game's files do not fix. */
 	remasteredEffects: RemasteredEffects;
 	/**
 	 * How fast the two animations run, as a multiple of the game's own speed (1 = the
 	 * game's "Fastest"). One of `ANIMATION_SPEEDS`; applied live, not just at startup.
+	 * Whether they run at all is View ▸ Animate Water / Animate Units, which the View menu
+	 * remembers itself (`ViewFlags`, `api.view.flags()`), as it does Remastered Graphics;
+	 * up to 0.16 those three were fields here too.
 	 */
 	animateWaterSpeed: number;
 	animateUnitsSpeed: number;
@@ -2500,7 +2498,26 @@ export interface Preferences {
 	 * while a mode is on, and the plugins' items always show.
 	 */
 	statusBar: StatusBarCells;
+	/**
+	 * How large the editor's own interface is drawn, in percent: menus, toolbars, panels,
+	 * dialogs, notices and the splash. One of `INTERFACE_SIZES`. The map is not scaled by it
+	 * (its own zoom decides that), which is why it is not the browser's page zoom; see
+	 * `components/ui/interfaceSize.ts`.
+	 */
+	interfaceSize: InterfaceSize;
+	/**
+	 * Notices stay until they are closed, whatever time their caller asked for (a plugin's
+	 * included). Off, a notice leaves after its own time: 6 seconds, 12 for an error, unless
+	 * the caller gave another (`atoms/uiAtoms.ts#pushToastAtom`, `toastLifetime`).
+	 */
+	keepNotices: boolean;
 }
+declare const INTERFACE_SIZES: readonly [
+	100,
+	115,
+	130
+];
+export type InterfaceSize = (typeof INTERFACE_SIZES)[number];
 /** See `Preferences.statusBar`, in the order the bar draws them. */
 export interface StatusBarCells {
 	tile: boolean;
@@ -4225,6 +4242,10 @@ export interface ViewApi {
 	/** The View menu's ticks: grid, locations, units, sprites, doodads, fog, … */
 	flags(): ViewFlags;
 	/**
+	 * Set some of the View menu's ticks, as the person would from the menu. The editor
+	 * remembers five of them from one session to the next (`grid`, `locationNames`,
+	 * `animateWater`, `animateUnits`, `hdGraphics`), so a plugin that changes one of those
+	 * for a moment should put it back; the rest start each session on their defaults.
 	 * @example
 	 * api.view.setFlags({ grid: !api.view.flags().grid });
 	 */
