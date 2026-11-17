@@ -1275,7 +1275,7 @@ export interface HistoryEdit {
 	};
 	/**
 	 * Other editor-owned files of the map's archive the edit changed — a borrowed terrain's lattice
-	 * (editor/borrowLattice.ts) — each as it was and as the edit left it, null for none. Put in
+	 * (editor/modTerrain/borrowLattice.ts) — each as it was and as the edit left it, null for none. Put in
 	 * force like `pins`, beside them.
 	 */
 	members?: {
@@ -2459,7 +2459,7 @@ export interface Preferences {
 		target: string;
 	};
 	/**
-	 * The desktop build's in-app updates (`editor/updates.ts`, `desktop/updater.ts`); the
+	 * The desktop build's in-app updates (`app/updates.ts`, `desktop/updater.ts`); the
 	 * browser build shows none of this, having nothing to update. `checkOnStart` asks GitHub
 	 * for a newer version a few seconds after launch and raises a toast when there is one.
 	 * `nightly` follows the nightly channel instead of the numbered releases — one-way in
@@ -2483,7 +2483,7 @@ export interface Preferences {
 	};
 	/**
 	 * Preferences ▸ Hotkeys: the commands whose keys the user changed, by command id
-	 * (`editor/commands.ts`), each with its whole list — `[]` leaves it with none. A
+	 * (`app/commands.ts`), each with its whole list — `[]` leaves it with none. A
 	 * command not here has the keys it ships with.
 	 */
 	hotkeys: HotkeyOverrides;
@@ -2502,7 +2502,7 @@ export interface Preferences {
 	 * How large the editor's own interface is drawn, in percent: menus, toolbars, panels,
 	 * dialogs, notices and the splash. One of `INTERFACE_SIZES`. The map is not scaled by it
 	 * (its own zoom decides that), which is why it is not the browser's page zoom; see
-	 * `editor/interfaceSize.ts`.
+	 * `app/interfaceSize.ts`.
 	 */
 	interfaceSize: InterfaceSize;
 	/**
