@@ -1428,6 +1428,8 @@ export interface ViewFlags {
 	pins: boolean;
 	/** Where the map does not play as its image under the symmetry does (editor/fairness.ts), per small square. */
 	asymmetry: boolean;
+	/** What differs from the map this one is compared with (editor/compare.ts): tiles, units and locations. */
+	changes: boolean;
 	startLocations: boolean;
 	/** Cycle the palette so water and lava animate as they do in game. */
 	animateWater: boolean;
@@ -1562,7 +1564,7 @@ export interface StackedLine {
 	pieces: number;
 }
 /** Every built-in dialog, by the id `openDialogAtom` takes; `DialogHost` maps each to its component. */
-export type DialogId = "newMap" | "openMap" | "saveAs" | "exportImage" | "mapProperties" | "resizeMap" | "mapRevision" | "playerSettings" | "forceSettings" | "playerColors" | "unitSettings" | "upgradeSettings" | "techSettings" | "stringEditor" | "soundEditor" | "switches" | "locationList" | "unitProperties" | "locationProperties" | "spriteProperties" | "triggerEditor" | "missionBriefing" | "cuwpEditor" | "replaceTerrain" | "autoStarts" | "testMap" | "symmetry" | "gridSettings" | "preferences" | "shortcuts" | "validateMap" | "statistics" | "importTriggers" | "exportTriggers" | "importStrings" | "exportStrings" | "find" | "about" | "confirmClose" | "recovery" | "previousVersions" | "plugins" | "confirmPlugin" | "pluginDialog" | "gameData" | "update" | "whatsNew" | "mapDataSet";
+export type DialogId = "newMap" | "openMap" | "saveAs" | "exportImage" | "mapProperties" | "resizeMap" | "mapRevision" | "playerSettings" | "forceSettings" | "playerColors" | "unitSettings" | "upgradeSettings" | "techSettings" | "stringEditor" | "soundEditor" | "switches" | "locationList" | "unitProperties" | "locationProperties" | "spriteProperties" | "triggerEditor" | "missionBriefing" | "cuwpEditor" | "replaceTerrain" | "autoStarts" | "testMap" | "symmetry" | "compareMaps" | "gridSettings" | "preferences" | "shortcuts" | "validateMap" | "statistics" | "importTriggers" | "exportTriggers" | "importStrings" | "exportStrings" | "find" | "about" | "confirmClose" | "recovery" | "previousVersions" | "plugins" | "confirmPlugin" | "pluginDialog" | "gameData" | "update" | "whatsNew" | "mapDataSet";
 export interface MapImageOptions {
 	/** Output pixels per map tile. 32 matches the game's art 1:1; 1 is a minimap. */
 	pixelsPerTile: number;
